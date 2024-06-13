@@ -28,6 +28,6 @@ setup(
     description = 'Self Evolution Adaptive Kinetic Monte Carlo',
     author = 'Tao Liang',
     author_email = 'xhtliang120@gmail.com',
-##  url = 'https://github.com/ashtonmv/twod_materials',
-##  download_url = 'https://github.com/ashtonmv/twod_materials/tarball/0.0.7',
+    url = 'https://github.com/TaoLiang120/SEAKMC_py_parallel',
+##  download_url = 'https://github.com/TaoLiang120/SEAKMC_py_parallel.git',
 )

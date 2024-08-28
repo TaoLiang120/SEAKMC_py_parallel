@@ -5,7 +5,7 @@ from setuptools import setup, find_packages
 
 
 setup(
-    name='seakmc',
+    name='seakmc_p',
     packages=find_packages(exclude=('tests', 'docs')),
     include_package_data=True,
     version='2.0.0',

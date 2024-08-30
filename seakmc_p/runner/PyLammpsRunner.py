@@ -137,7 +137,7 @@ class PyLammpsRunner(object):
             self.bin.scatter_atoms("x", 1, 3, x_p)
             self.bin.command("run   0")
             #encalc = self.bin.extract_compute("av_pe", LMP_STYLE_GLOBAL, LMP_TYPE_SCALAR)
-            encalc = self.bin.get_thermo("etotal")
+            total_energy = self.bin.get_thermo("etotal")
             forces = self.bin.gather_atoms("f", 1, 3)
             forces = np.ctypeslib.as_array(forces)
         except:
@@ -145,7 +145,7 @@ class PyLammpsRunner(object):
             errormsg = f"Error on getting forces from PYLAMMPS!"
             errormsg += ("\n" +
                          f"Job - purpose:{purpose} datatype:{type(data)} thiscolor:{thiscolor} nactive:{nactive}!")
-        return [encalc, forces, isValid, errormsg]
+        return [total_energy, forces, isValid, errormsg]
 
     def init_binary(self, nproc=1, comm=None, Screen=False, Log=False):
         args = []

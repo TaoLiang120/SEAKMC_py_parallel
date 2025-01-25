@@ -10,10 +10,10 @@ setup(
     include_package_data=True,
     version='2.0.0',
     package_data={
-        "seakmc.input": ["*.yaml"],
+        "seakmc_p.input": ["*.yaml"],
     },
     entry_points={
-        'console_scripts': ['seakmc = seakmc.script.seakmc:main']
+        'console_scripts': ['seakmc_p = seakmc_p.script.seakmc_p:main']
     },
     description='Self Evolution Adaptive Kinetic Monte Carlo',
     author='Tao Liang',

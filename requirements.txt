@@ -1,7 +1,7 @@
 numpy>=1.26.0
 scipy>=1.10.1
 pandas>=2.0.1
-mpi4py>=3.1.4
+mpi4py<=3.1.6
 monty>=2023.4.10
 pymatgen>=2023.11.12
 yaml>=0.2.5

@@ -19,6 +19,12 @@ __date__ = "October 7th, 2021"
 comm_world = MPI.COMM_WORLD
 rank_world = comm_world.Get_rank()
 size_world = comm_world.Get_size()
+n = int(np.log(size_world) / np.log(2))
+nleft = size_world - int(np.power(2, n))
+if n >= 4 and nleft >= np.power(2, n - 1):
+    nproc_this = int(np.power(2, n - 1) * 3)
+else:
+    nproc_this = int(np.power(2, n))
 
 NDISPARRAY = 3
 SEQUENCE_DISPARRAY = ["SP", "FS", "FI"]
@@ -277,10 +283,10 @@ class Settings:
             thisfeval["OutFileHeaders"] = []
 
         if not isinstance(thisfeval["nproc"], int):
-            thisfeval["nproc"] = size_world
+            thisfeval["nproc"] = nproc_this
 
         if not isinstance(thisfeval["nproc4ReCal"], int):
-            thisfeval["nproc4ReCal"] = size_world
+            thisfeval["nproc4ReCal"] = nproc_this
 
         if thisfeval["Style"].lower() == "pylammps":
             thisfeval["Bin"] = "pylammps"

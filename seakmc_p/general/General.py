@@ -9,6 +9,7 @@ from seakmc_p.runner.PyLammpsRunner import PyLammpsRunner
 from seakmc_p.runner.VaspRunner import VaspRunner
 from seakmc_p.input.Input import export_Keys
 from seakmc_p.input.Input import SP_COMPACT_HEADER, SP_COMPACT_HEADER4Delete
+from seakmc_p.mpiconf.error_exit import error_exit
 
 __author__ = "Tao Liang"
 __copyright__ = "Copyright 2021"
@@ -170,8 +171,8 @@ def object_maker(thissett, thisRestart):
     elif thissett.force_evaluator['Style'].upper() == "LAMMPS":
         thisRunner = LammpsRunner(thissett)
     else:
-        print("Unkown force_evaluator!")
-        comm_world.Abort(rank_world)
+        errormsg = "Unkown force_evaluator!"
+        error_exit(errormsg)
     object_dict['force_evaluator'] = thisRunner
 
     AVOutpath = os.path.join(THIS_PATH, "AVOut")
@@ -194,7 +195,10 @@ def object_maker(thissett, thisRestart):
     else:
         DBSavepath = THIS_PATH
 
-    Paths = [AVOutpath, DataOutpath, DBLoadpath, DBSavepath, SPOutpath, THIS_PATH]
+    DynMatOutpath = os.path.join(THIS_PATH, "DynMatOut")
+    os.makedirs(DynMatOutpath, exist_ok=True)
+
+    Paths = [AVOutpath, DataOutpath, DBLoadpath, DBSavepath, SPOutpath, DynMatOutpath, THIS_PATH]
     object_dict['out_paths'] = Paths
 
     thisDFWriter = DFWriter(OutPath=SPOutpath, WriteSPs=thissett.visual["Write_SP_Summary"])

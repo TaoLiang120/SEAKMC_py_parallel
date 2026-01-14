@@ -32,20 +32,22 @@ class LogWriter(object):
         logstr_input += "\n" + "The default bond length is the bond length in pymatgen with bond order one."
         logstr_input += "\n" + "The default cutting distance for neighbors is 1.1 times of the bond lengths!"
         logstr_input += "\n" + "The default coordination number is 4."
-        if RESTART in (None, False):
-            with open(self.logfile, 'w') as data_file:
-                data_file.write(logstr_input)
-                data_file.write("\n" + "Seakmc start ...")
-        else:
-            if os.path.isfile(self.logfile):
-                with open(self.logfile, 'a') as data_file:
-                    data_file.write(
-                        "\n" + f"Restart istep: {RESTART.istep_this} and finished AVs: {RESTART.finished_AVs} ...")
-            else:
+        if self.Log:
+            if RESTART in (None, False):
                 with open(self.logfile, 'w') as data_file:
                     data_file.write(logstr_input)
-                    data_file.write(
-                        "\n" + f"Restart istep: {RESTART.istep_this} and finished AVs: {RESTART.finished_AVs} ...")
+                    data_file.write("\n" + "Seakmc start ...")
+            else:
+                if os.path.isfile(self.logfile):
+                    with open(self.logfile, 'a') as data_file:
+                       data_file.write(
+                            "\n" + f"Restart istep: {RESTART.istep_this} and finished AVs: {RESTART.finished_AVs} ...")
+                else:
+                    with open(self.logfile, 'w') as data_file:
+                        data_file.write(logstr_input)
+                        data_file.write(
+                            "\n" + f"Restart istep: {RESTART.istep_this} and finished AVs: {RESTART.finished_AVs} ...")
+
 
     def write_data(self, logstr):
         if self.Screen: print(logstr)

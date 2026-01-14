@@ -8,6 +8,7 @@ from mpi4py import MPI
 from seakmc_p.core.util import mat_mag
 from seakmc_p.input.Input import SP_KMC_HEADER, SP_DATA_HEADER
 from seakmc_p.input.Input import SP_KMC_SELECTED_HEADER, NENTRY_SELECTED_HEADER, NDISPARRAY, SEQUENCE_DISPARRAY
+from seakmc_p.mpiconf.error_exit import error_exit
 
 __author__ = "Tao Liang"
 __copyright__ = "Copyright 2021"
@@ -45,8 +46,8 @@ class Basin:
         self.nAV = len(DataSPs.idavs)
         self.nSP = DataSPs.nSP
         if self.nSP <= 0:
-            print("No saddle point in KMC step!")
-            comm_world.Abort(rank_world)
+            errormsg = "No saddle point in KMC step!"
+            error_exit(errormsg)
 
         self.localiba = np.array([self.id] * self.nSP, dtype=int)
         self.localiav = np.array(DataSPs.localiav, dtype=int)

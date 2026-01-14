@@ -2,6 +2,7 @@ import os
 import pickle
 
 from mpi4py import MPI
+from seakmc_p.mpiconf.error_exit import error_exit
 
 __author__ = "Tao Liang"
 __copyright__ = "Copyright 2021"
@@ -55,11 +56,11 @@ class RESTART:
                 try:
                     thisRestart = pickle.load(f)
                 except:
-                    print("Cannot load restart file!")
-                    comm_world.Abort(rank_world)
+                    errormsg = "Cannot load restart file!"
+                    error_exit(errormsg)
         else:
-            print(filename + " is not existed.")
-            comm_world.Abort(rank_world)
+            errormsg = filename + " is not existed."
+            error_exit(errormsg)
         return thisRestart
 
     def to_file(self):

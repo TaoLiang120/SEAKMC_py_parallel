@@ -17,6 +17,7 @@ from seakmc_p.input.Input import SP_COMPACT_HEADER4Delete, SP_DATA_HEADER
 from seakmc_p.kmc.KMC import SuperBasin
 from seakmc_p.restart.Restart import RESTART
 from seakmc_p.spsearch.SaddlePoints import Data_SPs
+from seakmc_p.mpiconf.error_exit import error_exit
 
 comm_world = MPI.COMM_WORLD
 rank_world = comm_world.Get_rank()
@@ -128,9 +129,8 @@ def run_seakmc(thissett, seakmcdata, object_dict, Eground, thisRestart):
 
         df_delete_this = None
         if DataSPs.nSP <= 0:
-            if rank_world == 0:
-                print("###  No saddle point found! ###")
-                comm_world.Abort(rank_world)
+            errormsg = "###  No saddle point found! ###"
+            error_exit(errormsg)
 
         if rank_world == 0:
             if (thissett.system["Restart"]["WriteRestart"] and

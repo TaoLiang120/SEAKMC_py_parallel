@@ -6,6 +6,7 @@ import seakmc_p.general.General as mygen
 import seakmc_p.process.DataDyn as mydatadyn
 from seakmc_p.core.data import SeakmcData
 from seakmc_p.restart.Restart import RESTART
+from seakmc_p.mpiconf.error_exit import error_exit
 
 comm_world = MPI.COMM_WORLD
 rank_world = comm_world.Get_rank()
@@ -97,7 +98,7 @@ def initial_data_dynamics(thissett, seakmcdata, force_evaluator, LogWriter):
         if rank_world == 0:
             if not isValid:
                 LogWriter.write_data(errormsg)
-                comm_world.Abort(rank_world)
+                error_exit(errormsg)
             seakmcdata = SeakmcData.from_file("Runner_0/tmp1.dat", atom_style=thissett.data['atom_style_after'])
             seakmcdata.assert_settings(thissett)
             seakmcdata.to_atom_style()

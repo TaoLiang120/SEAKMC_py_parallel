@@ -1,6 +1,7 @@
 from mpi4py import MPI
 
 import seakmc_p.mpiconf.MPIconf as mympi
+from seakmc_p.mpiconf.error_exit import error_exit
 
 comm_world = MPI.COMM_WORLD
 rank_world = comm_world.Get_rank()
@@ -45,8 +46,7 @@ def data_dynamics(purpose, force_evaluator, data, ntask_tot, nactive=None, nproc
     relaxed_coords = comm_world.bcast(relaxed_coords, root=0)
     isValid = comm_world.bcast(isValid, root=0)
     errormsg = comm_world.bcast(errormsg, root=0)
-    if not isValid and rank_world == 0:
-        print(errormsg)
-        comm_world.Abort(rank_world)
+    if not isValid:
+        error_exit(errormsg)
 
     return [Eground, relaxed_coords, isValid, errormsg]

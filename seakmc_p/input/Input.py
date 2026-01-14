@@ -8,6 +8,7 @@ from mpi4py import MPI
 
 from pymatgen.core.periodic_table import Element
 from pymatgen.core.bonds import obtain_all_bond_lengths
+from seakmc_p.mpiconf.error_exit import error_exit
 
 __author__ = "Tao Liang"
 __copyright__ = "Copyright 2021"
@@ -219,15 +220,12 @@ class Settings:
                     "RinputOpt": False, "RinputMD": False, "RinputMD0": False}
         data = parameters['data']
         if "FileName" not in data:
-            if rank_world == 0:
-                logstr = "There must be a FileName for data!"
-                print(logstr)
-                comm_world.Abort(rank_world)
+            logstr = "There must be a FileName for data!"
+            error_exit(logstr)
         if "atom_style" not in data:
-            if rank_world == 0:
-                logstr = "There must be an atom_style for data!"
-                print(logstr)
-                comm_world.Abort(rank_world)
+            logstr = "There must be an atom_style for data!"
+            error_exit(logstr)
+
         for key in data:
             thisdata[key] = data[key]
         if "atom_style_after" not in thisdata:
@@ -288,6 +286,14 @@ class Settings:
         if not isinstance(thisfeval["nproc4ReCal"], int):
             thisfeval["nproc4ReCal"] = nproc_this
 
+        if thisfeval["nproc"] > size_world:
+            logstr = "nproc must be smaller than the number of MPI ranks!"
+            error_exit(logstr)
+
+        if thisfeval["nproc4ReCal"] > size_world:
+            logstr = "nproc4ReCal must be smaller than the number of MPI ranks!"
+            error_exit(logstr)
+
         if thisfeval["Style"].lower() == "pylammps":
             thisfeval["Bin"] = "pylammps"
         elif thisfeval["Style"].lower() == "lammps":
@@ -300,10 +306,8 @@ class Settings:
         potential = parameters['potential']
         symbols = []
         if 'species' not in potential:
-            if rank_world == 0:
-                logstr = "Potential input must contain species."
-                print(logstr)
-                comm_world.Abort(rank_world)
+            logstr = "Potential input must contain species."
+            error_exit(logstr)
         else:
             for i in range(len(potential["species"])):
                 thisstr = potential["species"][i]
@@ -312,25 +316,19 @@ class Settings:
 
         ntype = len(symbols)
         if ntype < 1:
-            if rank_world == 0:
-                logstr = "No species has been found."
-                print(logstr)
-                comm_world.Abort(rank_world)
+            logstr = "No species has been found."
+            error_exit(logstr)
         OpenKIM = {"OpenKIM": False, "kim_init": False, "kim_interaction": False, "kim_param": False}
         if "OpenKIM" in potential:
             for key in potential["OpenKIM"]:
                 OpenKIM[key] = potential["OpenKIM"][key]
             if OpenKIM["OpenKIM"]:
                 if not isinstance(OpenKIM["kim_init"], str):
-                    if rank_world == 0:
-                        logstr = "kim_init must be a string!"
-                        print(logstr)
-                        comm_world.Abort(rank_world)
+                    logstr = "kim_init must be a string!"
+                    error_exit(logstr)
                 if not isinstance(OpenKIM["kim_interaction"], str):
-                    if rank_world == 0:
-                        logstr = "kim_interaction must be a string!"
-                        print(logstr)
-                        comm_world.Abort(rank_world)
+                    logstr = "kim_interaction must be a string!"
+                    error_exit(logstr)
         if "pair_coeff" not in potential: potential["pair_coeff"] = False
         if not OpenKIM["OpenKIM"]:
             if "FileName" not in potential:
@@ -340,18 +338,14 @@ class Settings:
                     elif isinstance(potential["pair_coeff"], list):
                         pass
                     else:
-                        if rank_world == 0:
-                            logstr = "Potential input must contain a FileName or pair_coeff."
-                            print(logstr)
-                            comm_world.Abort(rank_world)
+                        logstr = "Potential input must contain a FileName or pair_coeff."
+                        error_exit(logstr)
                 else:
                     pass
             if "pair_style" not in potential:
                 if "LAMMPS" in thisfeval["Style"].upper():
-                    if rank_world == 0:
-                        logstr = "Potential input must contain pair_style."
-                        print(logstr)
-                        comm_world.Abort(rank_world)
+                    logstr = "Potential input must contain pair_style."
+                    error_exit(logstr)
         else:
             if "FileName" not in potential: potential["FileName"] = "FileName"
             if "pair_style" not in potential: potential["pair_style"] = "eam"
@@ -516,10 +510,8 @@ class Settings:
         if "Style" not in active_volume: active_volume["Style"] = "defects"
         if active_volume["Style"].upper() == 'CUSTOM':
             if "NActive" not in active_volume:
-                if rank_world == 0:
-                    logstr = "Must input NActive for custom style of constructing AV!"
-                    print(logstr)
-                    comm_world.Abort(rank_world)
+                logstr = "Must input NActive for custom style of constructing AV!"
+                error_exit(logstr)
             else:
                 if "NBuffer" not in active_volume: active_volume["NBuffer"] = 0
                 if "NFixed" not in active_volume: active_volume["NFixed"] = 0
@@ -529,10 +521,8 @@ class Settings:
             if "Method" in active_volume["FindDefects"]:
                 if "WS" in active_volume["FindDefects"]["Method"].upper():
                     if "ReferenceData" not in active_volume["FindDefects"]:
-                        if rank_world == 0:
-                            logstr = "Must have 'ReferenceData' for WS method of FindDefects!"
-                            print(logstr)
-                            comm_world.Abort(rank_world)
+                        logstr = "Must have 'ReferenceData' for WS method of FindDefects!"
+                        error_exit(logstr)
                     if 'atom_style4Ref' not in parameters['active_volume']['FindDefects']:
                         active_volume['FindDefects']['atom_style4Ref'] = thisdata['atom_style']
                     if "DCut4Def" not in active_volume["FindDefects"]:
@@ -548,10 +538,8 @@ class Settings:
                             except:
                                 pass
                     if len(defects) <= 0:
-                        if rank_world == 0:
-                            logstr = "Must input coordinates of defects for custom FindDefect!"
-                            print(logstr)
-                            comm_world.Abort(rank_world)
+                        logstr = "Must input coordinates of defects for custom FindDefect!"
+                        error_exit(logstr)
                 else:
                     if "DCut4Def" not in active_volume["FindDefects"]:
                         active_volume["FindDefects"]["DCut4Def"] = 0.1
@@ -651,6 +639,7 @@ class Settings:
                         "ActiveOnly4SPConfig": True, "R2Dmax4SPAtom": 0.04, "DCut4SPAtom": 0.01, "DynCut4SPAtom": False,
                         "ShowIterationResults": False, "Inteval4ShowIterationResults": 1,
                         "ShowVN4ShowIterationResults": False, "ShowCoords4ShowIterationResults": False,
+                        "OutForces4IterationResults": False, "OutFix4IterationResults": False,
                         "ApplyMass": False, "TaskDist": "AV", "Master_Slave": True,
                         "LocalRelax": LocalRelax, "force_evaluator": spsearch_force_evaluator, "Preloading": Preloading,
                         "HandleVN": HandleVN}
@@ -671,6 +660,9 @@ class Settings:
                     thisspsearch[key][subkey] = spsearch[key][subkey]
             else:
                 thisspsearch[key] = spsearch[key]
+        if thisspsearch["force_evaluator"]["nproc"] > size_world:
+            logstr = "nproc for saddle point search must be no larger than the number of MPI ranks!"
+            error_exit(logstr)
         thisspsearch["RatioStepsize"] = thisspsearch["MaxStepsize"] / thisspsearch["TrialStepsize"]
         ################################################################################
         thisKMC = {"NSteps": 1, "Temp": 800.0, "Temp4Time": 800.0, "AccStyle": "NoAcc", "NMaxBasin": "NA",
@@ -687,7 +679,7 @@ class Settings:
                     pass
         #################################################################################
         thisDynMat = {"SNC": False, "NMax4SNC": 1000, "displacement": 0.000001,
-                      "delimiter": " ", "LowerHalfMat": False,
+                      "delimiter": " ", "LowerHalfMat": False, "OutDynMat": False,
                       "CalPrefactor": False, "Method4Prefactor": "harmonic", "VibCut": 1.0e-8}
         if "dynamic_matrix" in parameters:
             DynMat = parameters['dynamic_matrix']
@@ -854,59 +846,43 @@ class Settings:
             self.kinetic_MC["AccStyle"] = "NOACC"
         if self.defect_bank["SaveDB"]: self.defect_bank["Recycle"] = True
         if self.data["dimension"] != 3:
-            if rank_world == 0:
-                logstr = "The data must be 3 dimensional!"
-                print(logstr)
-                comm_world.Abort(rank_world)
+            logstr = "The data must be 3 dimensional!"
+            error_exit(logstr)
 
         if self.active_volume["RT_SetMolID"] and self.active_volume["NPredef"] == 0:
             self.active_volume["NPredef"] = 1
         if isinstance(self.active_volume["Order4Recursive4PDR"], int):
             if self.active_volume["Order4Recursive4PDR"] < 1:
-                if rank_world == 0:
-                    logstr = "The Order4Recursive4PDR must be >= 1!"
-                    print(logstr)
-                    comm_world.Abort(rank_world)
+                logstr = "The Order4Recursive4PDR must be >= 1!"
+                error_exit(logstr)
         if isinstance(self.active_volume["Order4Recursive4AV"], int):
             if self.active_volume["Order4Recursive4AV"] < 1:
-                if rank_world == 0:
-                    logstr = "The Order4Recursive4AV must be >= 1!"
-                    print(logstr)
-                    comm_world.Abort(rank_world)
+                logstr = "The Order4Recursive4AV must be >= 1!"
+                error_exit(logstr)
         if not self.active_volume["Overlapping"]:
             if self.spsearch["SearchBuffer"]:
                 if (self.active_volume["DCut4noOverlap"] <=
                         self.active_volume["DActive"] + self.active_volume["DBuffer"]):
-                    if rank_world == 0:
-                        logstr = "DCut4noOverlap must be larger than DActive+DBuffer!"
-                        print(logstr)
-                        comm_world.Abort(rank_world)
+                    logstr = "DCut4noOverlap must be larger than DActive+DBuffer!"
+                    error_exit(logstr)
             else:
                 if self.active_volume["DCut4noOverlap"] <= self.active_volume["DActive"]:
-                    if rank_world == 0:
-                        logstr = "DCut4noOverlap must be larger than DActive!"
-                        print(logstr)
-                        comm_world.Abort(rank_world)
+                    logstr = "DCut4noOverlap must be larger than DActive!"
+                    error_exit(logstr)
 
         if self.kinetic_MC["AccStyle"][0:3].upper() == "MRM":
             if isinstance(self.kinetic_MC["EnCut4Transient"], float) or isinstance(self.kinetic_MC["EnCut4Transient"],
                                                                                    int):
                 pass
             else:
-                if rank_world == 0:
-                    logstr = "EnCut4Transient in kineticMC must be float number!"
-                    print(logstr)
-                    comm_world.Abort(rank_world)
+                logstr = "EnCut4Transient in kineticMC must be float number!"
+                error_exit(logstr)
         if self.saddle_point["CalEbiasInData"] and self.saddle_point["CalBarrsInData"] is False:
-            if rank_world == 0:
-                logstr = "CalBarrsInData in saddle_point must be True if CalEbiasInData is True!"
-                print(logstr)
-                comm_world.Abort(rank_world)
+            logstr = "CalBarrsInData in saddle_point must be True if CalEbiasInData is True!"
+            error_exit(logstr)
         if self.spsearch["MaxStepsize"] <= self.spsearch["TrialStepsize"]:
-            if rank_world == 0:
-                logstr = "The MaxStepsize must be larger than TrialStepsize!"
-                print(logstr)
-                comm_world.Abort(rank_world)
+            logstr = "The MaxStepsize must be larger than TrialStepsize!"
+            error_exit(logstr)
 
         if self.saddle_point["BarrierCut"] > 10.0:
             if rank_world == 0:
@@ -970,9 +946,7 @@ class Settings:
                 for i in range(n):
                     FixTypes_dict[self.spsearch["FixTypes"][i]] = FixAxes[i]
             else:
-                if rank_world == 0:
-                    print(errormsg)
-                    comm_world.Abort(rank_world)
+                error_exit(errormsg)
         else:
             FixTypes_dict = None
 

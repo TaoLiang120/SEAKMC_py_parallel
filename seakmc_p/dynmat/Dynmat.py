@@ -3,6 +3,7 @@ import copy
 import scipy.linalg
 
 from mpi4py import MPI
+from seakmc_p.mpiconf.error_exit import error_exit
 
 __author__ = "Tao Liang"
 __copyright__ = "Copyright 2021"
@@ -69,8 +70,8 @@ class DynMat:
 
         natoms = int(np.sqrt(dynmat.shape[0]) / 3)
         if dynmat.shape[0] - 9 * natoms * natoms != 0:
-            print("The file must contain 3N * 3N elements, where N is number of atoms!")
-            comm_world.Abort(rank_world)
+            logstr = "The file must contain 3N * 3N elements, where N is number of atoms!"
+            error_exit(logstr)
 
         dynmat = dynmat.reshape([natoms * 3, natoms * 3])
         dm = cls(id, natoms, dynmat, eig=None, eigvec=None, vib=None, vibcut=vibcut, isValid=True,
@@ -114,7 +115,6 @@ class DynMat:
             vib = np.select([self.eig < self.vibcut, self.eig >= self.vibcut], [1.0, self.eig])
         else:
             vib = np.ones(self.natoms)
-
         return vib
 
     def is_SNCable(self):

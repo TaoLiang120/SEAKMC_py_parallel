@@ -7,6 +7,7 @@ from mpi4py import MPI
 
 import seakmc_p.mpiconf.MPIconf as mympi
 from seakmc_p.input.Input import SP_COMPACT_HEADER4Delete
+from seakmc_p.mpiconf.error_exit import error_exit
 
 __author__ = "Tao Liang"
 __copyright__ = "Copyright 2021"
@@ -46,9 +47,8 @@ def recalib_energy_single(itask_start, thiscolor, comm_split,
         [thisesp, coords, isValid, errormsg] = force_evaluator.run_runner("MD0", thisdata, thiscolor,
                                                                           nactive=thisdata.natoms, thisExports=None,
                                                                           comm=comm_split)
-        if not isValid and rank_local == 0:
-            print(errormsg)
-            comm_world.Abort(rank_world)
+        if not isValid:
+            error_exit(errormsg)
         thisbarr = round(thisesp - Eground, thissett.system["float_precision"])
         thisidens["barr"] = thisbarr
         if ReBias:
@@ -57,9 +57,8 @@ def recalib_energy_single(itask_start, thiscolor, comm_split,
             [thisefin, coords, isValid, errormsg] = force_evaluator.run_runner("MD0", thisdata, thiscolor,
                                                                                nactive=thisdata.natoms,
                                                                                thisExports=None, comm=comm_split)
-            if not isValid and rank_local == 0:
-                print(errormsg)
-                comm_world.Abort(rank_world)
+            if not isValid:
+                error_exit(errormsg)
             thisebias = round(thisefin - Eground, thissett.system["float_precision"])
             thisidens["ebias"] = thisebias
         if thisbarr < thissett.saddle_point["BarrierMin"]:
@@ -77,8 +76,8 @@ def recalibrate_energy(thissett, DataSPs, seakmcdata, AVitags, Eground, object_d
     ntask_tot = DataSPs.nSP
     nproc_task = thissett.force_evaluator['nproc4ReCal']
     if nproc_task > size_world:
-        print("Number of processors is smaller than number of processors for CalBarrsInData")
-        comm_world.Abort(rank_world)
+        errormsg = "Number of processors is smaller than number of processors for CalBarrsInData"
+        error_exit(errormsg)
 
     start_proc = 0
     ntask_time = mympi.get_ntask_time(nproc_task, start_proc=start_proc, thiscomm=None)

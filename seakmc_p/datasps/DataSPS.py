@@ -372,19 +372,19 @@ def slave_data_SPS(nproc_task, thiscolor, comm_split,
                     if SNC or CalPref:
                         SNC, CalPref, dynmatAV_l[iav], isDynmat = preSPS.get_thisSNC4spsearch(idav, thissett, thisAV,
                                                                                               SNC, CalPref, object_dict,
-                                                                                              thiscolor,
+                                                                                              thiscolor, istep,
                                                                                               comm=comm_split)
                         comm_split.Barrier()
                 else:
                     if isDynmat and dynmatAV_l[iav] is None:
                         SNC, CalPref, dynmatAV_l[iav], isDynmat = preSPS.get_thisSNC4spsearch(idav, thissett, thisAV,
                                                                                               SNC, CalPref, object_dict,
-                                                                                              thiscolor,
+                                                                                              thiscolor, istep,
                                                                                               comm=comm_split)
                         comm_split.Barrier()
 
                 thisSP, thisVN, time_spsearch, ntsiter = mySPS.spsearch_search_single(nproc_task, thiscolor, comm_split,
-                                                                                      idav, thissett, thisAV, thisSOPs,
+                                                                                      istep, idav, thissett, thisAV, thisSOPs,
                                                                                       dynmatAV_l[iav], SNC, CalPref,
                                                                                       thisSPS,
                                                                                       Pre_Disps, idsps, thisVNS,
@@ -588,14 +588,14 @@ def data_SPS_no_master_slave(nproc_task, start_proc, ntask_time, thiscolor, comm
                     if SNC or CalPref:
                         SNC, CalPref, dynmatAV_l[iav], isDynmat = preSPS.get_thisSNC4spsearch(idav, thissett, thisAV,
                                                                                               SNC, CalPref, object_dict,
-                                                                                              thiscolor,
+                                                                                              thiscolor, istep,
                                                                                               comm=comm_split)
 
                     comm_split.Barrier()
 
                     thisSP, thisVN, time_spsearch, ntsiter = mySPS.spsearch_search_single(nproc_task, thiscolor,
                                                                                           comm_split,
-                                                                                          idav, thissett, thisAV,
+                                                                                          istep, idav, thissett, thisAV,
                                                                                           thisSOPs, dynmatAV_l[iav],
                                                                                           SNC, CalPref, thisSPS,
                                                                                           Pre_Disps, idsps, thisVNS,
@@ -635,14 +635,14 @@ def data_SPS_no_master_slave(nproc_task, start_proc, ntask_time, thiscolor, comm
                                                         SNC_l[iav],
                                                         CalPref_l[iav],
                                                         object_dict,
-                                                        thiscolor,
+                                                        thiscolor, istep,
                                                         comm=comm_split))
                         comm_split.Barrier()
 
                     thisSP, thisVN, time_spsearch, ntsiter = (
                         mySPS.spsearch_search_single(nproc_task, thiscolor,
                                                      comm_split,
-                                                     idav, thissett, thisAV_l[iav],
+                                                     istep, idav, thissett, thisAV_l[iav],
                                                      thisSOPs_l[iav],
                                                      dynmatAV_l[iav], SNC_l[iav],
                                                      CalPref_l[iav],

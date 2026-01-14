@@ -1,5 +1,6 @@
 import json
 import os
+import shutil
 
 import numpy as np
 import pandas as pd
@@ -8,6 +9,7 @@ from mpi4py import MPI
 from seakmc_p.core.symmetry import PGSymmOps, SymmOP
 from seakmc_p.dynmat.Dynmat import DynMat
 from seakmc_p.spsearch.SaddlePoints import AV_SPs, DefectBank
+from seakmc_p.mpiconf.error_exit import error_exit
 
 __author__ = "Tao Liang"
 __copyright__ = "Copyright 2021"
@@ -138,18 +140,26 @@ def initial_SNC_CalPref(idav, thisAV, thissett):
     return SNC, CalPref, errorlog
 
 
-def get_dynmatAV(idav, thissett, thisAV, force_evaluator, thiscolor, comm=None):
+def get_dynmatAV(idav, thissett, thisAV, force_evaluator, thiscolor, istep, DynMatOutpath, comm=None):
     [etotal, coords, isValid, errormsg] = force_evaluator.run_runner("SPSDYNMAT", thisAV, thiscolor,
                                                                      nactive=thisAV.nactive, thisExports=None,
                                                                      comm=comm)
-    if not isValid and rank_world == 0:
-        print(errormsg)
-        comm_world.Abort(rank_world)
+    if not isValid:
+        error_exit(errormsg)
 
+    fname = "Runner_" + str(thiscolor) + "/dynmat.dat"
+    if thissett.dynamic_matrix["OutDynMat"]:
+        local_rank = comm.Get_rank()
+        if local_rank == 0:
+            outf = os.path.join(DynMatOutpath, "KMC_" + str(istep) + "_AV_" + str(idav) + ".dat")
+            if not os.path.exists(outf):
+                shutil.copy(fname, outf)
+
+    thissett.dynamic_matrix["LowerHalfMat"]
     delimiter = thissett.dynamic_matrix["delimiter"]
     vibcut = thissett.dynamic_matrix["VibCut"]
     LowerHalfMat = thissett.dynamic_matrix["LowerHalfMat"]
-    dynmatAV = DynMat.from_file("Runner_" + str(thiscolor) + "/dynmat.dat", id=idav,
+    dynmatAV = DynMat.from_file(fname, id=idav,
                                 delimiter=delimiter, vibcut=vibcut, LowerHalfMat=LowerHalfMat)
     return dynmatAV
 
@@ -165,10 +175,11 @@ def diagonize_dynmatAV(dynmatAV, isVib=False, Get_inv_luf=True, comm=None):
     return dynmatAV
 
 
-def get_thisSNC4spsearch(idav, thissett, thisAV, thisSNC, thisCalPref, object_dict, thiscolor, comm=None):
+def get_thisSNC4spsearch(idav, thissett, thisAV, thisSNC, thisCalPref, object_dict, thiscolor, istep, comm=None):
     if comm is None: comm = MPI.COMM_WORLD
     force_evaluator = object_dict['force_evaluator']
-    dynmatAV = get_dynmatAV(idav, thissett, thisAV, force_evaluator, thiscolor, comm=comm)
+    DynMatOutpath = object_dict['out_paths'][5]
+    dynmatAV = get_dynmatAV(idav, thissett, thisAV, force_evaluator, thiscolor, istep, DynMatOutpath, comm=comm)
     dynmatAV = diagonize_dynmatAV(dynmatAV, isVib=False, Get_inv_luf=True, comm=comm)
     isDynmat = dynmatAV.isValid
     if not dynmatAV.isValid:

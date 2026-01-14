@@ -7,6 +7,7 @@ from monty.io import zopen
 from mpi4py import MPI
 
 from seakmc_p.input.Input import export_Keys
+from seakmc_p.mpiconf.error_exit import error_exit
 
 __author__ = "Tao Liang"
 __copyright__ = "Copyright 2021"
@@ -34,8 +35,8 @@ class PyLammpsRunner(object):
 
         if isinstance(self.sett.potential["FileName"], str):
             if not os.path.isfile(os.path.join(self.path_to_pot, self.sett.potential["FileName"])):
-                print(f"Cannot find {os.path.join(self.path_to_pot, self.sett.potential['FileName'])} !")
-                comm_world.Abort(rank_world)
+                errormsg = f"Cannot find {os.path.join(self.path_to_pot, self.sett.potential['FileName'])} !"
+                error_exit(errormsg)
 
     def run_runner(self, purpose, data, thiscolor, nactive=None,
                    thisExports=[], comm=None):

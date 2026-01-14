@@ -7,6 +7,7 @@ import numpy as np
 from mpi4py import MPI
 from pymatgen.core.structure import Structure
 from pymatgen.io.vasp.outputs import Outcar
+from seakmc_p.mpiconf.error_exit import error_exit
 
 __author__ = "Tao Liang"
 __copyright__ = "Copyright 2021"
@@ -36,8 +37,8 @@ class VaspRunner(object):
             self.path_to_pot = os.getcwd()
 
         if not os.path.isfile(os.path.join(self.path_to_callscript, self.callscript)):
-            print(f"Cannot find {os.path.join(self.path_to_callscript, self.callscript)} !")
-            comm_world.Abort(rank_world)
+            errormsg = f"Cannot find {os.path.join(self.path_to_callscript, self.callscript)} !"
+            error_exit(errormsg)
 
     def run_runner(self, purpose, data, thiscolor, nactive=None,
                    thisExports=[], comm=None):
@@ -382,8 +383,8 @@ class VaspRunner(object):
                 for line in lines:
                     f.write(line)
         else:
-            print(f"Cannot find {filename} !")
-            comm_world.Abort(rank_world)
+            errormsg = f"Cannot find {filename} !"
+            error_exit(errormsg)
 
     def get_total_energy(self):
         if os.path.isfile(self.relative_path + "/" + "OUTCAR"):

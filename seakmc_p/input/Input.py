@@ -248,7 +248,8 @@ class Settings:
                      "Screen": False, "LogFile": False, "NSteps4Relax": 10000, "timestep": 0.002,
                      "nproc4ReCal": "auto", "RinputOpt": False, "RinputMD0": False,
                      "ImportValue4RinputOpt": False, "Keys4ImportValue4RinputOpt": [["Timestep", "time_step"]],
-                     "OutFileHeaders": [], "Relaxation": Relaxation}
+                     "OutFileHeaders": [], "Relaxation": Relaxation,
+                     "GPU": None}
 
         if "force_evaluator" in parameters:
             force_evaluator = parameters["force_evaluator"]
@@ -302,6 +303,14 @@ class Settings:
             thisfeval["Bin"] = "callvasp"
         else:
             pass
+
+        if isinstance(thisfeval["GPU"], list):
+            GPU_dict = {}
+            for i in range(0, len(thisfeval["GPU"])):
+                thisstr = thisfeval["GPU"][i]
+                thisstr = thisstr.split(":")
+                GPU_dict[thisstr[0]] = thisstr[1]
+        thisfeval["GPU"] = GPU_dict
         ############################################################
         potential = parameters['potential']
         symbols = []

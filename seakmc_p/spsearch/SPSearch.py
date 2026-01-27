@@ -1159,6 +1159,18 @@ class Dimer(SPSearch):
                 self.ISCONNECT = False
         return enlist[idmax], X12[idmax], xfinlist[idmax]
 
+    def remove_invalid_outputs(self):
+        if not self.ISVALID and self.rank_this == 0:
+            if self.sett.spsearch["ShowIterationResults"]:
+                thisdir = "ITERATION_RESULTS/" + str(self.ikmc) + "_" + str(self.idav) + "_" + str(self.idsps)
+                if os.path.isdir(thisdir): shutil.rmtree(thisdir)
+
+            if self.sett.dynamic_matrix["OutDynMat"]:
+                outf = "KMC_" + str(self.ikmc) + "_AV_" + str(self.idav)
+                outf += "_SPS_" + str(self.idsps) + ".dat"
+                outf = os.path.join(self.DynMatOutpath, outf)
+                if os.path.isfile(outf): os.remove(outf)
+
     def dimer_finalize(self, RinSPSOPT=None):
         if self.DI_MAX:
             self.BARR = self.sett.saddle_point["BarrierCut"] + 10.0
@@ -1213,6 +1225,8 @@ class Dimer(SPSearch):
                 self.ISVALID = False
             elif self.DMAG > self.DMAGCUT:
                 self.ISVALID = False
+
+        self.remove_invalid_outputs()
 
     def dimer_finish(self):
         self.force_evaluator.close()

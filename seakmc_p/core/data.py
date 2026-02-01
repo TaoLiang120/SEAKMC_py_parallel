@@ -660,16 +660,22 @@ class SeakmcData(LammpsData, MSONable):
                 thisidmol = self.atoms.iloc[nr]["molecule-ID"]
                 thisdCN = 0
                 ismolid = True
+                thistype = int(self.atoms.iloc[nr]["type"]) - 1
+                istype = True
                 if thisidmol < 0:
                     ismolid = False
                 else:
                     if isinstance(self.sett.active_volume["FindDefects"]["MolIDCap"], int):
                         if thisidmol >= self.sett.active_volume["FindDefects"]["MolIDCap"]:
                             ismolid = False
-                if ismolid:
+
+                if thistype + 1 in self.sett.active_volume["FindDefects"]["DiscardType"]:
+                    istype = False
+
+                if ismolid and istype:
                     thiscoords = np.array(
                         [self.atoms.iloc[nr]["xsn"], self.atoms.iloc[nr]["ysn"], self.atoms.iloc[nr]["zsn"]])
-                    thistype = int(self.atoms.iloc[nr]["type"]) - 1
+
                     if 'Q' in method:
                         qtype = self.sett.potential['charges'][thistype]
                         try:
@@ -706,12 +712,6 @@ class SeakmcData(LammpsData, MSONable):
 
                                 cntype = self.sett.potential['coordnums'][thistype]
                                 thisdCN = inds.shape[0] - cntype
-                                if self.sett.active_volume["FindDefects"]["DiscardType"][
-                                   0:2].upper() == "UN" and thisdCN < 0:
-                                    isdefect = True
-                                elif self.sett.active_volume["FindDefects"]["DiscardType"][
-                                     0:2].upper() == "OV" and thisdCN > 0:
-                                    isdefect = True
                                 if not isdefect:
                                     if 'CN' in method:
                                         if inds.shape[0] - cntype > 0.5:
@@ -801,13 +801,19 @@ class SeakmcData(LammpsData, MSONable):
         for nr in range(nrstart, nrend):
             thisidmol = refdata.atoms.iloc[nr]["molecule-ID"]
             ismolid = True
+            thistype = refdata.atoms.iloc[nr]["type"] - 1
+            istype = True
             if thisidmol < 0:
                 ismolid = False
             else:
                 if isinstance(self.sett.active_volume["FindDefects"]["MolIDCap"], int):
                     if thisidmol >= self.sett.active_volume["FindDefects"]["MolIDCap"]:
                         ismolid = False
-            if ismolid:
+
+            if thistype + 1 in self.sett.active_volume["FindDefects"]["DiscardType"]:
+                istype = False
+
+            if ismolid and istype:
                 thiscoords = np.array(
                     [refdata.atoms.iloc[nr]["xsn"], refdata.atoms.iloc[nr]["ysn"], refdata.atoms.iloc[nr]["zsn"]])
                 thisatoms = self.get_cell_atoms(nr, thiscoords, idc_reverse, grouped_atoms, atomdtype,

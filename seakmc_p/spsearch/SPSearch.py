@@ -388,7 +388,6 @@ class Dimer(SPSearch):
             DynMatOutpath="DynMatOut",
     ):
         super().__init__(
-            ikmc,
             idav,
             idsps,
             data,

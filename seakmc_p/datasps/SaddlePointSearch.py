@@ -73,6 +73,8 @@ def spsearch_search_single(nproc_task, thiscolor, comm_split,
             toDel = thisspsearch.is_to_be_delete()
             if not toDel:
                 thisspsearch.calculate_prefactor()
+                if thissett.dynamic_matrix["OutDynMat"]:
+                    thisspsearch.calculate_dynamic_matrix(config="FI")
         thisspsearch.dimer_finish()  ##
 
     thisSP = SaddlePoint(idav, idsps, idsps + 1, thisspsearch.BARR, thisspsearch.PREF, thisspsearch.EBIAS,

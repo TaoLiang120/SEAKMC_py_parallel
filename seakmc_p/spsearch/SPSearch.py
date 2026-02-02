@@ -332,14 +332,17 @@ class SPSearch:
             toDel = True
         return toDel
 
-    def calculate_prefactor(self):
+    def calculate_dynamic_matrix(self, config="SP"):
         if self.ISVALID and self.dmAV is not None:
             self.force_evaluator.close()
             self.dmAV.set_vib()
-            nfixed = 0
 
             thisdata = copy.deepcopy(self.data)
-            thisdata.update_avcoords_from_disps(self.XDISP)
+            if config == "FI":
+                thisdata.update_avcoords_from_disps(self.FXDISP)
+            else:
+                thisdata.update_avcoords_from_disps(self.XDISP)
+
             [encalc, coords, isValid, errormsg] = self.force_evaluator.run_runner("SPSDYNMAT", thisdata, self.thiscolor,
                                                                                   nactive=self.data.nactive,
                                                                                   comm=self.comm)
@@ -350,11 +353,21 @@ class SPSearch:
             fname = "Runner_" + str(self.thiscolor) + "/dynmat.dat"
             if self.sett.dynamic_matrix["OutDynMat"] and self.rank_this == 0:
                 outf = "KMC_" + str(self.ikmc) + "_AV_" + str(self.idav)
-                outf += "_SP_" + str(self.idsps) + ".dat"
+                if config == "FI":
+                    outf += "_FI_" + str(self.idsps) + ".dat"
+                else:
+                    outf += "_SP_" + str(self.idsps) + ".dat"
                 outf = os.path.join(self.DynMatOutpath, outf)
                 if not os.path.exists(outf):
                     shutil.copy(fname, outf)
+        else:
+            fname = None
+        return fname
 
+    def calculate_prefactor(self):
+        fname = self.calculate_dynamic_matrix(config="SP")
+        if fname is not None:
+            nfixed = 0
             delimiter = self.sett.dynamic_matrix["delimiter"]
             vibcut = self.sett.dynamic_matrix["VibCut"]
             LowerHalfMat = self.sett.dynamic_matrix["LowerHalfMat"]
@@ -1189,9 +1202,16 @@ class Dimer(SPSearch):
 
             if self.sett.dynamic_matrix["OutDynMat"]:
                 outf = "KMC_" + str(self.ikmc) + "_AV_" + str(self.idav)
-                outf += "_SPS_" + str(self.idsps) + ".dat"
+                outf += "_SP_" + str(self.idsps) + ".dat"
                 outf = os.path.join(self.DynMatOutpath, outf)
-                if os.path.isfile(outf): os.remove(outf)
+                if os.path.isfile(outf):
+                    os.remove(outf)
+
+                outf = "KMC_" + str(self.ikmc) + "_AV_" + str(self.idav)
+                outf += "_FI_" + str(self.idsps) + ".dat"
+                outf = os.path.join(self.DynMatOutpath, outf)
+                if os.path.isfile(outf):
+                    os.remove(outf)
 
     def dimer_finalize(self, RinSPSOPT=None):
         if self.DI_MAX:

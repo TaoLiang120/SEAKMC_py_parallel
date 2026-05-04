@@ -4,13 +4,12 @@ import time
 
 from mpi4py import MPI
 
-comm_world = MPI.COMM_WORLD
-rank_world = comm_world.Get_rank()
-size_world = comm_world.Get_size()
-
-
 def postprocess(tic, thissett, object_dict, simulation_time):
+    comm_world = MPI.COMM_WORLD
+    rank_world = comm_world.Get_rank()
+    size_world = comm_world.Get_size()
     comm_world.Barrier()
+
     LogWriter = object_dict['LogWriter']
     if rank_world == 0:
         folds = os.listdir()
@@ -27,3 +26,6 @@ def postprocess(tic, thissett, object_dict, simulation_time):
             round(toc - tic, thissett.system['float_precision'])) + " s"
         logstr += "\n" + "==================================================================="
         LogWriter.write_data(logstr)
+
+    comm_world.Barrier()
+    MPI.Finalize()

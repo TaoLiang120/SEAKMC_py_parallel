@@ -167,5 +167,6 @@ def preprocess(thissett):
                 seakmcdata.to_lammps_data(out_paths[1] + "/" + "KMC_" + str(istep_this) + ".dat", to_atom_style=True)
 
     comm_world.Barrier()
+    MPI.Finalize()
 
     return seakmcdata, object_dict, Eground, thisRestart

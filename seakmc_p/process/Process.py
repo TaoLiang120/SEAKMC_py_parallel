@@ -4,6 +4,7 @@ import time
 
 import numpy as np
 import pandas as pd
+import copy
 from mpi4py import MPI
 
 import seakmc_p.datasps.DataKMC as dataKMC
@@ -18,13 +19,13 @@ from seakmc_p.kmc.KMC import SuperBasin
 from seakmc_p.restart.Restart import RESTART
 from seakmc_p.spsearch.SaddlePoints import Data_SPs
 from seakmc_p.mpiconf.error_exit import error_exit
-
-comm_world = MPI.COMM_WORLD
-rank_world = comm_world.Get_rank()
-size_world = comm_world.Get_size()
-
+from seakmc_p.process.TrialDisp2Basin import TrialDisp2Basin, TrialDisps
 
 def run_seakmc(thissett, seakmcdata, object_dict, Eground, thisRestart):
+    comm_world = MPI.COMM_WORLD
+    rank_world = comm_world.Get_rank()
+    size_world = comm_world.Get_size()
+
     out_paths = object_dict['out_paths']
     force_evaluator = object_dict['force_evaluator']
     LogWriter = object_dict['LogWriter']
@@ -56,14 +57,49 @@ def run_seakmc(thissett, seakmcdata, object_dict, Eground, thisRestart):
         last_de_center = None
 
     comm_world.Barrier()
+    MPI.Finalize()
 
     for istep in range(istep_this, thissett.kinetic_MC['NSteps']):
+        comm_world = MPI.COMM_WORLD
+        rank_world = comm_world.Get_rank()
+        size_world = comm_world.Get_size()
         if rank_world == 0:
             tickmc = time.time()
             DFWriter.init_deleted_SPs(istep)
             DFWriter.init_SPs(istep)
             logstr = f"istep KMC: {istep}"
             LogWriter.write_data(logstr)
+
+        if thissett.force_evaluator["TrialDisps2Basin"]["TrialDisps2Basin"]:
+            TDBsett = thissett.force_evaluator["TrialDisps2Basin"]
+            thisTrialDisps = TrialDisps(TDBsett["Disps"], TDBsett["Ref_Length"], TDBsett["Target_StrainRate"],
+                                        temp=thissett.kinetic_MC["temp"], mindisp=TDBsett["MinDisp"],
+                                        maxdisp=TDBsett["MaxDisp"],
+                                        straintype=TDBsett["StrainRateType"])
+
+            for itrial in range(TDBsett["nDisps"]):
+                displacement = thisTrialDisps.displacements[itrial]
+                thisTDB = TrialDisp2Basin(seakmcdata, displacement, itrial, Eground=Eground,
+                                          key=TDBsett["Keyword4RinputTDB"])
+                thisTDB.relax_basin(force_evaluator, LogWriter, ntask_tot=1, nproc_task=thissett.force_evaluator["nproc"])
+                thisTDB.run_seakmc(istep, thissett, object_dict)
+                if rank_world == 0:
+                    thisTrialDisps.Add_one_trialdisp(thisTDB)
+
+            comm_world.Barrier()
+            if rank_world == 0:
+                target_displacement = thisTrialDisps.apply_displacement()
+                logstr = f"strains:{thisTrialDisps.strains} one_over_freqs:{thisTrialDisps.one_over_freqs}"
+                logstr += "\n" + f"target strain:{thisTrialDisps.target_strain} target displacement:{target_displacement}"
+
+            comm_world.Barrier()
+            target_displacement = comm_world.bcast(target_displacement, root=0)
+
+            thisTDB = TrialDisp2Basin(seakmcdata, target_displacement, itrial + 1, Eground=Eground,
+                                      key=TDBsett["Keyword4RinputTDB"])
+            thisTDB.relax_basin(force_evaluator, LogWriter, ntask_tot=1, nproc_task=thissett.force_evaluator["nproc"])
+            seakmcdata = copy.deepcopy(thisTDB.thisdata)
+            Eground = thisTDB.Eground
 
         if thisRestart is None:
             seakmcdata.get_defects(LogWriter, last_de_center=last_de_center)
@@ -110,7 +146,8 @@ def run_seakmc(thissett, seakmcdata, object_dict, Eground, thisRestart):
         DataSPs, AVitags, df_delete_SPs = dataSPS.data_find_saddlepoints(istep, thissett, seakmcdata, DefectBank_list,
                                                                          thisSuperBasin, Eground,
                                                                          DataSPs, AVitags, df_delete_SPs, undo_idavs,
-                                                                         finished_AVs, simulation_time, object_dict)
+                                                                         finished_AVs, simulation_time,
+                                                                         DFWriter, object_dict)
 
         seakmcdata.to_atom_style()
         seakmcdata.velocities = None
@@ -229,5 +266,6 @@ def run_seakmc(thissett, seakmcdata, object_dict, Eground, thisRestart):
             LogWriter.write_data(logstr)
 
         comm_world.Barrier()
+        MPI.Finalize()
 
     return simulation_time

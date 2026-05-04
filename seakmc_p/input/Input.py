@@ -64,7 +64,9 @@ DEFECTBANK_DISPS_HEADER = ["dx", "dy", "dz"]
 
 export_Keys = ["istep", "ground_energy", "nDefect", "defect_center_xs", "defect_center_ys", "defect_center_zs",
                "nBasin", "nSP_thisbasin", "nSP_superbasin", "iSP_selected", "forward_barrier", "ebias",
-               "backward_barrier", "time_step", "simulation_time"]
+               "backward_barrier",
+               "one_over_freq", "mean_squared_disp", "diffusion_coeff",
+               "time_step", "simulation_time"]
 
 MPI_Tags = IntEnum("Tags", "READY START DONE EXIT")
 
@@ -220,14 +222,13 @@ class Settings:
                     "RinputOpt": False, "RinputMD": False, "RinputMD0": False}
         data = parameters['data']
         if "FileName" not in data:
-            logstr = "There must be a FileName for data!"
-            error_exit(logstr)
+            raise ValueError("There must be a FileName for data!")
         if "atom_style" not in data:
-            logstr = "There must be an atom_style for data!"
-            error_exit(logstr)
+            raise ValueError("There must be an atom_style for data!")
 
         for key in data:
             thisdata[key] = data[key]
+
         if "atom_style_after" not in thisdata:
             atom_style = thisdata["atom_style"]
             atom_style_after = atom_style
@@ -243,12 +244,16 @@ class Settings:
         thisdata["PBC"] = PBC
         #########################################################
         Relaxation = {"BoxRelax": False, "InitTemp4Opt": 0.0, "TargetTemp4NVT": 5.0, "NVTSteps4Opt": 10000}
+        TrialDisps2Basin = {"TrialDisps2Basin": False, "RinputTDB": None, "Ref_Length": None,
+                            "Target_StrainRate": None,
+                            "Disps": [0.001, 0.002, 0.004, 0.008], "nDisps": 4,
+                            "MinDisp": 0.0001, "MaxDisp": 0.01, "StrainRateType": "tension",
+                            "Keyword4RinputTDB": "displacement", "Keyword": "displacement"}
         thisfeval = {"Bin": "pylammps", "Path2Bin": False, "Style": "pylammps", "nproc": "auto", "processors": False,
-                     "partition": False,
-                     "Screen": False, "LogFile": False, "NSteps4Relax": 10000, "timestep": 0.002,
-                     "nproc4ReCal": "auto", "RinputOpt": False, "RinputMD0": False,
+                     "partition": False, "Screen": False, "LogFile": False, "NSteps4Relax": 10000, "timestep": 0.002,
+                     "Master_Slave4ReCal": False, "RinputOpt": False, "RinputMD0": False, "nproc4ReCal": "auto",
                      "ImportValue4RinputOpt": False, "Keys4ImportValue4RinputOpt": [["Timestep", "time_step"]],
-                     "OutFileHeaders": [], "Relaxation": Relaxation,
+                     "OutFileHeaders": [], "Relaxation": Relaxation, "TrialDisps2Basin": TrialDisps2Basin,
                      "GPU": None}
 
         if "force_evaluator" in parameters:
@@ -256,6 +261,9 @@ class Settings:
             keys4IV = []
             for key in force_evaluator:
                 if key == "Relaxation":
+                    for subkey in force_evaluator[key]:
+                        thisfeval[key][subkey] = force_evaluator[key][subkey]
+                elif key == "TrialDisps2Basin":
                     for subkey in force_evaluator[key]:
                         thisfeval[key][subkey] = force_evaluator[key][subkey]
                 elif key == "Keys4ImportValue4RinputOpt":
@@ -270,6 +278,18 @@ class Settings:
                     thisfeval[key] = keys4IV
                 else:
                     thisfeval[key] = force_evaluator[key]
+
+        if thisfeval["TrialDisps2Basin"]["TrialDisps2Basin"]:
+            if not isinstance(thisfeval["TrialDisps2Basin"]["Rinput4TDB"], str):
+                logstr = "There must be a FileName for applying displacements to the basin!"
+                error_exit(logstr)
+            if thisfeval["TrialDisps2Basin"]["Ref_Length"] is None:
+                logstr = "There must be a reference length for applying displacements to the basin!"
+                error_exit(logstr)
+            if thisfeval["TrialDisps2Basin"]["Target_StrainRate"] is None:
+                logstr = "There must be a target strain rate for applying displacements to the basin!"
+                error_exit(logstr)
+            thisfeval["TrialDisps2Basin"]["nDisps"] = len(thisfeval["TrialDisps2Basin"]["Disps"])
 
         if isinstance(thisfeval["OutFileHeaders"], list):
             for i in range(len(thisfeval["OutFileHeaders"]) - 1, -1, -1):
@@ -806,7 +826,7 @@ class Settings:
                           "Write_Data_AVs": True, "Write_KMC_Data": True, "Write_Prob": True, "DetailOut": True,
                           "SPs4Detail": "AUTO"}
         Write_AV_SPs = {"Write_Local_AV": False, "Write_AV_SPs": False, "Write_Data_AV_SPs": False,
-                        "AVOutPath": "AVOut", "DispStyle4AVSP": "SP"}
+                        "AVOutPath": "AVOut", "DispStyle4AVSP": "BOTH", "OutputStyle": "SEP"}
         thisvisual = {"Screen": True, "Log": True, "LogFile": "Seakmc.log", "Write_SP_Summary": True,
                       "RCut4Vis": 0.04, "DCut4Vis": 0.01, "Invisible": True, "Reset_Index": False, "ShowBuffer": False,
                       "ShowFixed": False,
@@ -862,6 +882,25 @@ class Settings:
                 logstr += ("\n" +
                            f"The potential-FileName is not a string, provide the POTCAR_symbol in potential-Path2Pot!")
                 logstr += "\n" + f"Code will generate POTCAR based on input structure!"
+                print(logstr)
+
+        KB = 8.617333262145e-5
+        if self.force_evaluator["TrialDisps2Basin"]["TrialDisps2Basin"]:
+            if rank_world == 0:
+                disps = np.array(self.force_evaluator['TrialDisps2Basin']['Disps'])
+                strains = np.divide(disps, self.force_evaluator['TrialDisps2Basin']['Ref_Length'])
+                Target_StrainRate = self.force_evaluator['TrialDisps2Basin']['Target_StrainRate']
+                Max_Disp = self.force_evaluator['TrialDisps2Basin']['MaxDisp']
+                Max_Strain = Max_Disp / self.force_evaluator['TrialDisps2Basin']['Ref_Length']
+                Max_timestep = Max_Strain/Target_StrainRate
+                temp = self.kinetic_MC['Temp']
+                prefactor = self.saddle_point['Prefactor']
+                barr = np.log(Max_timestep * prefactor * 1.0e12) * temp * KB
+                logstr = f"the TrialDisps2Basin is set to True, which means trial displacements will be applied to the basin!"
+                logstr += "\n" + f"Trial displacements: {disps} strains: {strains}!"
+                logstr += "\n" + f"Maximum displacement: {Max_Disp} Maximum strain: {Max_Strain}!"
+                logstr += "\n" + f"Target strain rate: {Target_StrainRate}, the max timestep: {Max_timestep}!."
+                logstr += "\n" + f"This is corresponding to an energy barrier of {barr} eV at {temp} K with a prefactor of {prefactor}!."
                 print(logstr)
 
         if self.saddle_point["CalBarrsInData"] and self.saddle_point["CalEbiasInData"]:

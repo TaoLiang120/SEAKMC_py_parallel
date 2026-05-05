@@ -268,7 +268,6 @@ def run_seakmc(thissett, seakmcdata, object_dict, Eground, thisRestart):
         comm_world.Barrier()
 
         '''
-        MPI.COMM_WORLD.Abort(1)
         MPI.Finalize()
         comm_world = MPI.COMM_WORLD
         rank_world = comm_world.Get_rank()

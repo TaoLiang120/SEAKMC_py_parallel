@@ -36,7 +36,6 @@ class TrialDisp2Basin:
     def relax_basin(self, force_evaluator, LogWriter, ntask_tot=1, nproc_task=1, comm_world=None):
         if comm_world is None:
             comm_world = MPI.COMM_WORLD
-        comm_world = MPI.COMM_WORLD
         rank_world = comm_world.Get_rank()
         ntask_tot = 1
         [Eground, relaxed_coords, isValid, errormsg] = mydatadyn.data_dynamics("DATATDB", force_evaluator,
@@ -54,7 +53,6 @@ class TrialDisp2Basin:
         if comm_world is None:
             comm_world = MPI.COMM_WORLD
         rank_world = comm_world.Get_rank()
-        size_world = comm_world.Get_size()
 
         out_paths = object_dict['out_paths']
         LogWriter = object_dict['LogWriter']

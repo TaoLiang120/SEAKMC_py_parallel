@@ -21,6 +21,7 @@ from seakmc_p.spsearch.SaddlePoints import Data_SPs
 from seakmc_p.mpiconf.error_exit import error_exit
 from seakmc_p.process.TrialDisp2Basin import TrialDisp2Basin, TrialDisps
 
+
 def run_seakmc(thissett, seakmcdata, object_dict, Eground, thisRestart):
     comm_world = MPI.COMM_WORLD
     rank_world = comm_world.Get_rank()
@@ -57,12 +58,8 @@ def run_seakmc(thissett, seakmcdata, object_dict, Eground, thisRestart):
         last_de_center = None
 
     comm_world.Barrier()
-    MPI.Finalize()
 
     for istep in range(istep_this, thissett.kinetic_MC['NSteps']):
-        comm_world = MPI.COMM_WORLD
-        rank_world = comm_world.Get_rank()
-        size_world = comm_world.Get_size()
         if rank_world == 0:
             tickmc = time.time()
             DFWriter.init_deleted_SPs(istep)
@@ -103,10 +100,6 @@ def run_seakmc(thissett, seakmcdata, object_dict, Eground, thisRestart):
             Eground = thisTDB.Eground
 
             comm_world.Barrier()
-            MPI.Finalize()
-            comm_world = MPI.COMM_WORLD
-            rank_world = comm_world.Get_rank()
-            size_world = comm_world.Get_size()
 
         if thisRestart is None:
             seakmcdata.get_defects(LogWriter, last_de_center=last_de_center)
@@ -273,6 +266,12 @@ def run_seakmc(thissett, seakmcdata, object_dict, Eground, thisRestart):
             LogWriter.write_data(logstr)
 
         comm_world.Barrier()
-        MPI.Finalize()
 
+        '''
+        MPI.COMM_WORLD.Abort(1)
+        MPI.Finalize()
+        comm_world = MPI.COMM_WORLD
+        rank_world = comm_world.Get_rank()
+        size_world = comm_world.Get_size()
+        '''
     return simulation_time

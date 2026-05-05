@@ -81,8 +81,9 @@ def run_seakmc(thissett, seakmcdata, object_dict, Eground, thisRestart):
                 displacement = thisTrialDisps.displacements[itrial]
                 thisTDB = TrialDisp2Basin(seakmcdata, displacement, itrial, Eground=Eground,
                                           key=TDBsett["Keyword4RinputTDB"])
-                thisTDB.relax_basin(force_evaluator, LogWriter, ntask_tot=1, nproc_task=thissett.force_evaluator["nproc"])
-                thisTDB.run_seakmc(istep, thissett, object_dict)
+                thisTDB.relax_basin(force_evaluator, LogWriter,
+                                    ntask_tot=1, nproc_task=thissett.force_evaluator["nproc"], comm_world=comm_world)
+                thisTDB.run_seakmc(istep, thissett, object_dict, comm_world=comm_world)
                 if rank_world == 0:
                     thisTrialDisps.Add_one_trialdisp(thisTDB)
 
@@ -100,6 +101,12 @@ def run_seakmc(thissett, seakmcdata, object_dict, Eground, thisRestart):
             thisTDB.relax_basin(force_evaluator, LogWriter, ntask_tot=1, nproc_task=thissett.force_evaluator["nproc"])
             seakmcdata = copy.deepcopy(thisTDB.thisdata)
             Eground = thisTDB.Eground
+
+            comm_world.Barrier()
+            MPI.Finalize()
+            comm_world = MPI.COMM_WORLD
+            rank_world = comm_world.Get_rank()
+            size_world = comm_world.Get_size()
 
         if thisRestart is None:
             seakmcdata.get_defects(LogWriter, last_de_center=last_de_center)

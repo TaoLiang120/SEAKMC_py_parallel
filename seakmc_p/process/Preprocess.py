@@ -8,11 +8,6 @@ from seakmc_p.core.data import SeakmcData
 from seakmc_p.restart.Restart import RESTART
 from seakmc_p.mpiconf.error_exit import error_exit
 
-comm_world = MPI.COMM_WORLD
-rank_world = comm_world.Get_rank()
-size_world = comm_world.Get_size()
-
-
 def load_RESTART(Restartsett):
     thisRestart = None
     if Restartsett["LoadRestart"]:
@@ -43,7 +38,12 @@ def load_RESTART(Restartsett):
     return thisRestart
 
 
-def initial_data_dynamics(thissett, seakmcdata, force_evaluator, LogWriter):
+def initial_data_dynamics(thissett, seakmcdata, force_evaluator, LogWriter, comm_world=None)
+    if comm_world is None:
+        comm_world = MPI.COMM_WORLD
+    rank_world = comm_world.Get_rank()
+    size_world = comm_world.Get_size()
+
     ntask_tot = 1
     nproc_task = thissett.force_evaluator['nproc']
     if thissett.data["MoleDyn"]:
@@ -117,6 +117,10 @@ def initial_data_dynamics(thissett, seakmcdata, force_evaluator, LogWriter):
 
 
 def preprocess(thissett):
+    comm_world = MPI.COMM_WORLD
+    rank_world = comm_world.Get_rank()
+    size_world = comm_world.Get_size()
+
     Eground = 0.0
     thisRestart = load_RESTART(thissett.system["Restart"])
     if rank_world == 0:
@@ -145,7 +149,7 @@ def preprocess(thissett):
             logstr = "Successfully loading input and structure ..."
             LogWriter.write_data(logstr)
 
-        seakmcdata, Eground = initial_data_dynamics(thissett, seakmcdata, force_evaluator, LogWriter)
+        seakmcdata, Eground = initial_data_dynamics(thissett, seakmcdata, force_evaluator, LogWriter, comm_world=comm_world)
         if thissett.visual["Write_Data_SPs"]["Write_KMC_Data"]:
             if rank_world == 0:
                 seakmcdata.to_lammps_data(out_paths[1] + "/" + "KMC_" + str(0) + ".dat", to_atom_style=True)

@@ -38,7 +38,7 @@ def load_RESTART(Restartsett):
     return thisRestart
 
 
-def initial_data_dynamics(thissett, seakmcdata, force_evaluator, LogWriter, comm_world=None)
+def initial_data_dynamics(thissett, seakmcdata, force_evaluator, LogWriter, comm_world=None):
     if comm_world is None:
         comm_world = MPI.COMM_WORLD
     rank_world = comm_world.Get_rank()

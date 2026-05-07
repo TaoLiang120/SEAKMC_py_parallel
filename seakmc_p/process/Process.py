@@ -88,11 +88,12 @@ def run_seakmc(thissett, seakmcdata, object_dict, Eground, thisRestart):
                     thisTDB.relax_basin(force_evaluator, LogWriter,
                                         ntask_tot=1, nproc_task=thissett.force_evaluator["nproc"],
                                         **COMM_args)
-                    comm_world.Barrier()
                     force_evaluator.close()
                     if COMM_args["isSplit"]:
                         COMM_args["thiscomm"].Free()
+                    thisTDB.update_thisdata(thissett)
 
+                    comm_world.Barrier()
                     thisTDB.run_seakmc(istep, thissett, object_dict)
                     if rank_world == 0:
                         thisTrialDisps.Add_one_trialdisp(thisTDB)
@@ -129,9 +130,10 @@ def run_seakmc(thissett, seakmcdata, object_dict, Eground, thisRestart):
                 if COMM_args["isSplit"]:
                     COMM_args["thiscomm"].Free()
 
+                thisTDB.update_thisdata(thissett)
                 seakmcdata = copy.deepcopy(thisTDB.thisdata)
                 Eground = thisTDB.Eground
-
+                thisTDB = None
                 comm_world.Barrier()
             ### End of Trial Displacements 2 Basin ###
             logstr = f"istep KMC: {istep}"

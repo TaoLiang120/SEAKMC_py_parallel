@@ -6,6 +6,7 @@ import numpy as np
 from scipy.optimize import curve_fit
 
 from mpi4py import MPI
+from seakmc_p.core.data import SeakmcData
 import seakmc_p.process.DataDyn as mydatadyn
 from seakmc_p.input.Input import SP_COMPACT_HEADER4Delete
 from seakmc_p.kmc.KMC import SuperBasin
@@ -49,8 +50,13 @@ class TrialDisp2Basin:
             if not isValid:
                 LogWriter.write_data(errormsg)
                 error_exit(errormsg)
-
         comm_world.Barrier()
+
+    def update_thisdata(self, thissett):
+        self.thisdata = SeakmcData.from_file("Runner_0/tmp1.dat", atom_style=thissett.data['atom_style_after'])
+        self.thisdata.assert_settings(thissett)
+        self.thisdata.to_atom_style()
+        self.thisdata.velocities = None
 
     def run_seakmc(self, istep, thissett, object_dict):
         comm_world = MPI.COMM_WORLD

@@ -184,5 +184,6 @@ def preprocess(thissett):
     if COMM_args["isSplit"]:
         COMM_args["thiscomm"].Free()
     comm_world.Barrier()
+    Eground = comm_world.bcast(Eground, root=0)
 
     return seakmcdata, object_dict, Eground, thisRestart

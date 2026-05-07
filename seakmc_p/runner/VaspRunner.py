@@ -22,9 +22,11 @@ size_world = comm_world.Get_size()
 
 
 class VaspRunner(object):
-    def __init__(self, sett):
+    def __init__(self, sett, subprocess=True):
         self.name = 'vasp'
         self.sett = sett
+        self.bin = None
+        self.subproc = subprocess
         self.callscript = self.sett.force_evaluator['Bin']
         if isinstance(self.sett.force_evaluator['Path2Bin'], str):
             self.path_to_callscript = self.sett.force_evaluator['Path2Bin']
@@ -40,8 +42,11 @@ class VaspRunner(object):
             errormsg = f"Cannot find {os.path.join(self.path_to_callscript, self.callscript)} !"
             error_exit(errormsg)
 
+    def init_binary(self, comm=None, Screen=False, Log=False, **kwargs):
+        self.bin = None
+
     def run_runner(self, purpose, data, thiscolor, nactive=None,
-                   thisExports=[], comm=None):
+                   thisExports=None, comm=None):
 
         purpose = purpose.upper()
         nproc_task = self.get_nproc_task(purpose)
@@ -86,8 +91,7 @@ class VaspRunner(object):
                     isValid = False
                     errormsg = f"Error on getting energy in VASP!"
                     errormsg += ("\n" +
-                                 f"Job - purpose{purpose} datatype:{type(data)}"
-                                 f" thiscolor:{thiscolor} nactive:{nactive}!")
+                                 f"Job - purpose:{purpose} datatype:{type(data)} thiscolor:{thiscolor} nactive:{nactive}!")
 
             if isValid:
                 if purpose == "SPSOPT" or purpose == "SPSRELAX":
@@ -96,8 +100,7 @@ class VaspRunner(object):
                         isValid = False
                         errormsg = f"Error on getting coordinates in VASP!"
                         errormsg += ("\n" +
-                                     f"Job - purpose:{purpose} datatype:{type(data)}"
-                                     f" thiscolor:{thiscolor} nactive:{nactive}!")
+                                     f"Job - purpose:{purpose} datatype:{type(data)} thiscolor:{thiscolor} nactive:{nactive}!")
                 else:
                     relaxed_coords = []
         else:
@@ -158,8 +161,7 @@ class VaspRunner(object):
                     isValid = False
                     errormsg = f"Error on getting energy in VASP!"
                     errormsg += ("\n" +
-                                 f"Job - purpose:{purpose} datatype:{type(data)}"
-                                 f" thiscolor{thiscolor} nactive:{nactive}!")
+                                 f"Job - purpose:{purpose} datatype:{type(data)} thiscolor:{thiscolor} nactive:{nactive}!")
         else:
             total_energy = None
             isValid = None
@@ -202,8 +204,8 @@ class VaspRunner(object):
             if rank_local == 0:
                 isValid = False
                 errormsg = f"Error on running VASP!"
-                errormsg += "\n" + (f"Job - purpose: {purpose} datatype:{type(data)}"
-                                    f" thiscolor: {thiscolor} nactive:{nactive}!")
+                errormsg += ("\n" +
+                             f"Job - purpose:{purpose} datatype:{type(data)} thiscolor:{thiscolor} nactive:{nactive}!")
 
         if rank_local == 0:
             if isValid:
@@ -212,16 +214,14 @@ class VaspRunner(object):
                     isValid = False
                     errormsg = f"Error on getting energy in VASP!"
                     errormsg += ("\n" +
-                                 f"Job - purpose:{purpose} datatype:{type(data)}"
-                                 f" thiscolor:{thiscolor} nactive:{nactive}!")
+                                 f"Job - purpose:{purpose} datatype:{type(data)} thiscolor:{thiscolor} nactive:{nactive}!")
             if isValid:
                 forces = self.get_forces()
                 if len(forces) == 0:
                     isValid = False
                     errormsg = f"Error on getting forces in VASP!"
                     errormsg += ("\n" +
-                                 f"Job - purpose:{purpose} datatype:{type(data)}"
-                                 f" thiscolor:{thiscolor} nactive:{nactive}!")
+                                 f"Job - purpose:{purpose} datatype:{type(data)} thiscolor:{thiscolor} nactive:{nactive}!")
         else:
             total_energy = None
             forces = None
@@ -237,7 +237,7 @@ class VaspRunner(object):
 
         return [total_energy, forces, isValid, errormsg]
 
-    def preparation(self, purpose, data, thiscolor, nactive=None, thisExports=[], nproc=1, comm=None):
+    def preparation(self, purpose, data, thiscolor, nactive=None, thisExports=None, nproc=1, comm=None):
         if purpose == "DATAMD":
             if isinstance(self.sett.data["RinputMD"], str):
                 rinputs = self.read_input_script(self.sett.data["RinputMD"])
@@ -415,7 +415,7 @@ class VaspRunner(object):
         else:
             return np.array([])
 
-    def get_forces(self):
+    def get_forces(self, data):
         if os.path.isfile(self.relative_path + "/" + "OUTCAR"):
             outcar = Outcar(self.relative_path + "/" + "OUTCAR")
             forces = outcar.read_table_pattern(

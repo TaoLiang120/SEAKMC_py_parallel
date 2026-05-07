@@ -889,25 +889,35 @@ def data_find_saddlepoints(istep, thissett, seakmcdata, DefectBank_list, thisSup
         start_proc = 0
         Master_Slave = False
 
+    GPU_args = thissett.force_evaluator["GPU"]
     ntask_time = mympi.get_ntask_time(nproc_task, start_proc=start_proc, thiscomm=None)
-    comm_split, thiscolor = mympi.split_communicator(nproc_task, start_proc=start_proc, thiscomm=None)
+    force_evaluator = object_dict['force_evaluator']
+    COMM_args = mympi.get_COMM_info(nproc_task, start_proc=start_proc)
+    force_evaluator.init_binary(comm=COMM_args["thiscomm"],
+                                Screen=thissett.force_evaluator['Screen'],
+                                Log=thissett.force_evaluator['LogFile'],
+                                **GPU_args)
+    thiscolor = COMM_args["color"]
 
     preSPS.initialization_thisdata(seakmcdata, thissett)
     if Master_Slave:
-        DataSPs, AVitags, df_delete_SPs = data_SPS_parrallel(nproc_task, start_proc, ntask_time, thiscolor, comm_split,
+        DataSPs, AVitags, df_delete_SPs = data_SPS_parrallel(nproc_task, start_proc, ntask_time, thiscolor,
+                                                             COMM_args["thiscomm"],
                                                              istep, thissett, seakmcdata, DefectBank_list,
                                                              thisSuperBasin, Eground,
                                                              DataSPs, AVitags, df_delete_SPs, undo_idavs, finished_AVs,
                                                              simulation_time, DFWriter, object_dict)
     else:
         DataSPs, AVitags, df_delete_SPs = data_SPS_no_master_slave(nproc_task, start_proc, ntask_time, thiscolor,
-                                                                   comm_split,
+                                                                   COMM_args["thiscomm"],
                                                                    istep, thissett, seakmcdata, DefectBank_list,
                                                                    thisSuperBasin, Eground,
                                                                    DataSPs, AVitags, df_delete_SPs, undo_idavs,
                                                                    finished_AVs, simulation_time, DFWriter, object_dict)
 
-    comm_split.Free()
+    force_evaluator.close()
+    if COMM_args["isSplit"]:
+        COMM_args["thiscomm"].Free()
     comm_world.Barrier()
 
     if rank_world == 0:

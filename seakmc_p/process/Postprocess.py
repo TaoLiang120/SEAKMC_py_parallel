@@ -9,7 +9,6 @@ def postprocess(tic, thissett, object_dict, simulation_time):
     rank_world = comm_world.Get_rank()
     size_world = comm_world.Get_size()
     comm_world.Barrier()
-
     LogWriter = object_dict['LogWriter']
     if rank_world == 0:
         folds = os.listdir()
@@ -20,12 +19,12 @@ def postprocess(tic, thissett, object_dict, simulation_time):
 
     if rank_world == 0:
         toc = time.time()
-        logstr = "\n" + (f"Total KMC time steps for this simulation: "
-                         f"{round(simulation_time, thissett.system['float_precision'])} ps")
+        logstr = "\n" + (f"Total KMC time steps for this simulation:"
+                         f" {round(simulation_time, thissett.system['float_precision'])} ps")
         logstr += "\n" + "Real time cost for this simulation:" + str(
             round(toc - tic, thissett.system['float_precision'])) + " s"
         logstr += "\n" + "==================================================================="
         LogWriter.write_data(logstr)
 
-    comm_world.Barrier()
-    MPI.Finalize()
+        comm_world.Barrier()
+        MPI.Finalize()

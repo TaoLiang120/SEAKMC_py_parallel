@@ -22,9 +22,10 @@ size_world = comm_world.Get_size()
 
 Valid_GPU_args = ["-k", "-kokkos", "-sf", "-suffix", "-pk", "-package"]
 class PyLammpsRunner(object):
-    def __init__(self, sett):
+    def __init__(self, sett, subprocess=False):
         self.name = 'pylammps'
         self.sett = sett
+        self.bin = None
         self.dynmat = "dynmat.dat"
         self.input_file = "in.lammps"
 
@@ -38,8 +39,29 @@ class PyLammpsRunner(object):
                 errormsg = f"Cannot find {os.path.join(self.path_to_pot, self.sett.potential['FileName'])} !"
                 error_exit(errormsg)
 
+    def init_binary(self, comm=None, Screen=False, Log=False, **kwargs):
+        args = []
+        if not Screen: args = ["-screen", "none"]
+        if isinstance(Log, str):
+            args += ["-log", Log]
+        else:
+            args += ["-log", "none"]
+
+        if isinstance(kwargs, dict):
+            for key in kwargs:
+                if key in Valid_GPU_args:
+                    val = kwargs[key]
+                    args.append(key)
+                    if isinstance(val, str):
+                        vs = val.split(",")
+                        for v in vs:
+                            args.append(v.strip())
+                else:
+                    args.append(str(val))
+        self.bin = lammps(cmdargs=args, comm=comm)
+
     def run_runner(self, purpose, data, thiscolor, nactive=None,
-                   thisExports=[], comm=None):
+                   thisExports=None, comm=None):
 
         purpose = purpose.upper()
         nproc_task = self.get_nproc_task(purpose)
@@ -62,18 +84,13 @@ class PyLammpsRunner(object):
         total_energy = 0.0
         relaxed_coords = []
         rinputs = comm.bcast(rinputs, root=0)
-        GPU_args = self.sett.force_evaluator["GPU"]
-        self.init_binary(nproc=nproc_task, comm=comm,
-                         Screen=self.sett.force_evaluator['Screen'], Log=self.sett.force_evaluator['LogFile'],
-                         **GPU_args)
-
         total_energy, relaxed_coords = self.execute_runner(rinputs)
 
         if rank_local == 0:
             if total_energy is None or relaxed_coords is None:
                 isValid = False
-                errormsg = (f"Error on running PYLAMMPS - "
-                            f"purpose: {purpose} datatype:{type(data)} thiscolor: {thiscolor} nactive:{nactive}!")
+                errormsg = (f"Error on running PYLAMMPS -"
+                            f" purpose:{purpose} datatype:{type(data)} thiscolor:{thiscolor} nactive:{nactive}!")
         else:
             isValid = None
             errormsg = None
@@ -82,7 +99,6 @@ class PyLammpsRunner(object):
 
         isValid = comm.bcast(isValid, root=0)
         errormsg = comm.bcast(errormsg, root=0)
-        self.close()
 
         return [total_energy, relaxed_coords, isValid, errormsg]
 
@@ -106,10 +122,6 @@ class PyLammpsRunner(object):
         isValid = True
         total_energy = 0.0
         relaxed_coords = []
-        GPU_args = self.sett.force_evaluator["GPU"]
-        self.init_binary(nproc=nproc_task, comm=comm,
-                         Screen=self.sett.force_evaluator['Screen'], Log=self.sett.force_evaluator['LogFile'],
-                         **GPU_args)
 
         total_energy, relaxed_coords = self.execute_runner(rinputs)
 
@@ -141,7 +153,7 @@ class PyLammpsRunner(object):
         try:
             self.bin.scatter_atoms("x", 1, 3, x_p)
             self.bin.command("run   0")
-            #encalc = self.bin.extract_compute("av_pe", LMP_STYLE_GLOBAL, LMP_TYPE_SCALAR)
+            #total_energy = self.bin.extract_compute("av_pe", LMP_STYLE_GLOBAL, LMP_TYPE_SCALAR)
             total_energy = self.bin.get_thermo("etotal")
             forces = self.bin.gather_atoms("f", 1, 3)
             forces = np.ctypeslib.as_array(forces)
@@ -152,30 +164,9 @@ class PyLammpsRunner(object):
                          f"Job - purpose:{purpose} datatype:{type(data)} thiscolor:{thiscolor} nactive:{nactive}!")
         return [total_energy, forces, isValid, errormsg]
 
-    def init_binary(self, nproc=1, comm=None, Screen=False, Log=False, **kwargs):
-        args = []
-        if not Screen: args = ["-screen", "none"]
-        if isinstance(Log, str):
-            args += ["-log", Log]
-        else:
-            args += ["-log", "none"]
-
-        if isinstance(kwargs, dict):
-            for key in kwargs:
-                if key in Valid_GPU_args:
-                    val = kwargs[key]
-                    args.append(key)
-                    if isinstance(val, str):
-                        vs = val.split(",")
-                        for v in vs:
-                            args.append(v.strip())
-                else:
-                    args.append(str(val))
-
-        self.bin = lammps(cmdargs=args, comm=comm)
-
     def execute_runner(self, rinputs):
         try:
+            self.bin.command("clear")
             self.bin.file(self.relative_path + "/" + self.input_file)
             self.bin.command("run 0")
             etotal = self.bin.get_thermo("etotal")
@@ -186,7 +177,7 @@ class PyLammpsRunner(object):
             coords = None
         return etotal, coords
 
-    def preparation(self, purpose, data, thiscolor, nactive=None, thisExports=[], nproc=1, comm=None):
+    def preparation(self, purpose, data, thiscolor, nactive=None, thisExports=None, nproc=1, comm=None):
         purpose = purpose.upper()
         if nactive is None:
             try:
@@ -330,8 +321,8 @@ class PyLammpsRunner(object):
             lines.append("group        gactive id <= %d" % nactive)
             if self.sett.spsearch["FixTypes_dict"] is not None:
                 lines = get_fixtypes_lines(lines, self.sett.spsearch["FixTypes_dict"])
-            lines.append("dynamical_matrix gactive regular %f file %s " % (
-                self.sett.dynamic_matrix["displacement"], "Runner_" + str(thiscolor) + "/" + self.dynmat))
+            lines.append("dynamical_matrix gactive regular %f file %s " %
+                         (self.sett.dynamic_matrix["displacement"], "Runner_" + str(thiscolor) + "/" + self.dynmat))
             lines.append("run   0")
             #lines.append("print   etotal=$(pe+ke)")
 
@@ -373,11 +364,11 @@ class PyLammpsRunner(object):
             lines.append("minimize  0.0 1.0e-6 %d   %d" % (max(100, int(Steps / 10)), Steps))
             if (self.sett.force_evaluator["Relaxation"]["InitTemp4Opt"] >
                     self.sett.force_evaluator["Relaxation"]["TargetTemp4NVT"]):
-                lines.append("velocity     all create %f 10 dist uniform" % (
-                    self.sett.force_evaluator["Relaxation"]["InitTemp4Opt"]))
+                lines.append("velocity     all create %f 10 dist uniform" %
+                             (self.sett.force_evaluator["Relaxation"]["InitTemp4Opt"]))
                 t = self.sett.force_evaluator["Relaxation"]["TargetTemp4NVT"]
-                lines.append("fix 1nvt all nvt   temp  %f  %f   %f " % (
-                    t, t, 0.33 * self.sett.force_evaluator["Relaxation"]["InitTemp4Opt"]))
+                lines.append("fix 1nvt all nvt   temp  %f  %f   %f " %
+                             (t, t, 0.33 * self.sett.force_evaluator["Relaxation"]["InitTemp4Opt"]))
                 lines.append("run %d" % (self.sett.force_evaluator["Relaxation"]["NVTSteps4Opt"]))
                 lines.append("unfix 1nvt")
                 lines.append("minimize     0.0 1.0e-6 %d  %d" % (max(100, int(Steps / 10)), Steps))
@@ -414,8 +405,8 @@ class PyLammpsRunner(object):
                     line += " " + thislines[j]
                 lines[i] = line
             if "dynamical_matrix " == lines[i][0:17]:
-                lines[i] = "dynamical_matrix gactive regular %f file %s " % (
-                    self.sett.dynamic_matrix["displacement"], "Runner_" + str(thiscolor) + "/" + self.dynmat)
+                lines[i] = ("dynamical_matrix gactive regular %f file %s " %
+                            (self.sett.dynamic_matrix["displacement"], "Runner_" + str(thiscolor) + "/" + self.dynmat))
             if "write_data " == lines[i][0:11]:
                 lines[i] = "write_data    " + "Runner_" + str(thiscolor) + "/tmp1.dat"
             if "group " == lines[i][0:6] and " id <= " in lines[i]:
@@ -428,7 +419,7 @@ class PyLammpsRunner(object):
                 lines[i] = line
         return lines
 
-    def ImportValue4RinputOpt(self, rinputs, purpose, thisExports=[]):
+    def ImportValue4RinputOpt(self, rinputs, purpose, thisExports=None):
         isValid = True
         if purpose == "DATATDB":
             key1 = self.sett.force_evaluator["TrialDisps2Basin"]["Keyword4RinputTDB"]
@@ -455,7 +446,7 @@ class PyLammpsRunner(object):
                 thiskeys = KEYS[i]
                 m = len(thiskeys)
                 if m == 2:
-                    if thiskeys[1] in export_Keys:
+                    if thiskeys[1] in thisExports.keys():
                         InKeys.append(thiskeys[0])
                         InVals.append(thisExports[thiskeys[1]])
 

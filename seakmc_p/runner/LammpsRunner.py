@@ -23,9 +23,11 @@ size_world = comm_world.Get_size()
 
 
 class LammpsRunner(object):
-    def __init__(self, sett):
+    def __init__(self, sett, subprocess=True):
         self.name = 'lammps'
         self.sett = sett
+        self.bin = None
+        self.subprocess = subprocess
         self.callscript = self.sett.force_evaluator['Bin']
         if isinstance(self.sett.force_evaluator['Path2Bin'], str):
             self.path_to_callscript = self.sett.force_evaluator['Path2Bin']
@@ -50,8 +52,11 @@ class LammpsRunner(object):
                 errormsg = f"Cannot find {os.path.join(self.path_to_pot, self.sett.potential['FileName'])} !"
                 error_exit(errormsg)
 
+    def init_binary(self, comm=None, Screen=False, Log=False, **kwargs):
+        self.bin = None
+
     def run_runner(self, purpose, data, thiscolor, nactive=None,
-                   thisExports=[], comm=None):
+                   thisExports=None, comm=None):
 
         purpose = purpose.upper()
         nproc_task = self.get_nproc_task(purpose)
@@ -101,8 +106,7 @@ class LammpsRunner(object):
                     isValid = False
                     errormsg = f"Error on getting energy in LAMMPS!"
                     errormsg += ("\n" +
-                                 f"Job - purpose:{purpose} datatype:{type(data)} "
-                                 f"thiscolor:{thiscolor} nactive:{nactive}!")
+                                 f"Job - purpose:{purpose} datatype:{type(data)} thiscolor:{thiscolor} nactive:{nactive}!")
 
             if isValid:
                 if purpose == "SPSOPT" or purpose == "SPSRELAX":
@@ -111,8 +115,7 @@ class LammpsRunner(object):
                         isValid = False
                         errormsg = f"Error on getting coordinates in LAMMPS!"
                         errormsg += ("\n" +
-                                     f"Job - purpose:{purpose} datatype:{type(data)} "
-                                     f"thiscolor:{thiscolor} nactive:{nactive}!")
+                                     f"Job - purpose:{purpose} datatype:{type(data)} thiscolor:{thiscolor} nactive:{nactive}!")
                 else:
                     relaxed_coords = []
         else:
@@ -177,8 +180,7 @@ class LammpsRunner(object):
                     isValid = False
                     errormsg = f"Error on getting energy in LAMMPS!"
                     errormsg += ("\n" +
-                                 f"Job - purpose:{purpose} datatype:{type(data)} "
-                                 f"thiscolor:{thiscolor} nactive:{nactive}!")
+                                 f"Job - purpose:{purpose} datatype:{type(data)} thiscolor:{thiscolor} nactive:{nactive}!")
         else:
             total_energy = None
 
@@ -189,6 +191,7 @@ class LammpsRunner(object):
         errormsg = comm.bcast(errormsg, root=0)
 
         return [total_energy, [], isValid, errormsg]
+
 
     def get_spsearch_forces(self, coords, data, thiscolor, nactive, comm=None):
         purpose = 'SPS'
@@ -233,16 +236,14 @@ class LammpsRunner(object):
                     isValid = False
                     errormsg = f"Error on getting energy in LAMMPS!"
                     errormsg += ("\n" +
-                                 f"Job - purpose:{purpose} datatype:{type(data)} "
-                                 f"thiscolor:{thiscolor} nactive:{nactive}!")
+                                 f"Job - purpose:{purpose} datatype:{type(data)} thiscolor:{thiscolor} nactive:{nactive}!")
             if isValid:
                 forces = self.get_forces(data)
                 if len(forces) == 0:
                     isValid = False
                     errormsg = f"Error on getting forces in LAMMPS!"
                     errormsg += ("\n" +
-                                 f"Job - purpose:{purpose} datatype:{type(data)} "
-                                 f"thiscolor:{thiscolor} nactive:{nactive}!")
+                                 f"Job - purpose:{purpose} datatype:{type(data)} thiscolor:{thiscolor} nactive:{nactive}!")
         else:
             total_energy = None
             forces = None
@@ -256,7 +257,7 @@ class LammpsRunner(object):
         thisdata = None
         return [total_energy, forces, isValid, errormsg]
 
-    def preparation(self, purpose, data, thiscolor, nactive=None, thisExports=[], nproc=1, comm=None):
+    def preparation(self, purpose, data, thiscolor, nactive=None, thisExports=None, nproc=1, comm=None):
         purpose = purpose.upper()
         if nactive is None:
             try:
@@ -582,7 +583,7 @@ class LammpsRunner(object):
                 lines[i] = line
         return lines
 
-    def ImportValue4RinputOpt(self, rinputs, purpose, thisExports=[]):
+    def ImportValue4RinputOpt(self, rinputs, purpose, thisExports=None):
         isValid = True
         if purpose == "DATATDB":
             key1 = self.sett.force_evaluator["TrialDisps2Basin"]["Keyword4RinputTDB"]
@@ -609,7 +610,7 @@ class LammpsRunner(object):
                 thiskeys = KEYS[i]
                 m = len(thiskeys)
                 if m == 2:
-                    if thiskeys[1] in export_Keys:
+                    if thiskeys[1] in thisExports.keys():
                         InKeys.append(thiskeys[0])
                         InVals.append(thisExports[thiskeys[1]])
 

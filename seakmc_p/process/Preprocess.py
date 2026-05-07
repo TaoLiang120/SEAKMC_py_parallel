@@ -6,6 +6,7 @@ import seakmc_p.general.General as mygen
 import seakmc_p.process.DataDyn as mydatadyn
 from seakmc_p.core.data import SeakmcData
 from seakmc_p.restart.Restart import RESTART
+import seakmc_p.mpiconf.MPIconf as mympi
 from seakmc_p.mpiconf.error_exit import error_exit
 
 def load_RESTART(Restartsett):
@@ -38,12 +39,10 @@ def load_RESTART(Restartsett):
     return thisRestart
 
 
-def initial_data_dynamics(thissett, seakmcdata, force_evaluator, LogWriter, comm_world=None):
-    if comm_world is None:
-        comm_world = MPI.COMM_WORLD
+def initial_data_dynamics(thissett, seakmcdata, force_evaluator, LogWriter, **COMM_args):
+    comm_world = MPI.COMM_WORLD
     rank_world = comm_world.Get_rank()
     size_world = comm_world.Get_size()
-
     ntask_tot = 1
     nproc_task = thissett.force_evaluator['nproc']
     if thissett.data["MoleDyn"]:
@@ -55,7 +54,8 @@ def initial_data_dynamics(thissett, seakmcdata, force_evaluator, LogWriter, comm
         [Eground, relaxed_coords, isValid, errormsg] = mydatadyn.data_dynamics("DATAMD", force_evaluator, seakmcdata,
                                                                                ntask_tot,
                                                                                nactive=seakmcdata.natoms,
-                                                                               nproc_task=nproc_task, thisExports=None)
+                                                                               nproc_task=nproc_task, thisExports=None,
+                                                                               **COMM_args)
 
         if rank_world == 0:
             seakmcdata = SeakmcData.from_file("Runner_0/tmp1.dat", atom_style=thissett.data['atom_style_after'])
@@ -71,7 +71,8 @@ def initial_data_dynamics(thissett, seakmcdata, force_evaluator, LogWriter, comm
         [Eground, relaxed_coords, isValid, errormsg] = mydatadyn.data_dynamics("DATAOPT", force_evaluator, seakmcdata,
                                                                                ntask_tot,
                                                                                nactive=seakmcdata.natoms,
-                                                                               nproc_task=nproc_task, thisExports=None)
+                                                                               nproc_task=nproc_task, thisExports=None,
+                                                                               **COMM_args)
 
         if rank_world == 0:
             seakmcdata = SeakmcData.from_file("Runner_0/tmp1.dat", atom_style=thissett.data['atom_style_after'])
@@ -93,7 +94,8 @@ def initial_data_dynamics(thissett, seakmcdata, force_evaluator, LogWriter, comm
         [Eground, relaxed_coords, isValid, errormsg] = mydatadyn.data_dynamics("DATAOPT", force_evaluator, seakmcdata,
                                                                                ntask_tot,
                                                                                nactive=seakmcdata.natoms,
-                                                                               nproc_task=nproc_task, thisExports=None)
+                                                                               nproc_task=nproc_task, thisExports=None,
+                                                                               **COMM_args)
 
         if rank_world == 0:
             if not isValid:
@@ -112,7 +114,8 @@ def initial_data_dynamics(thissett, seakmcdata, force_evaluator, LogWriter, comm
         [Eground, relaxed_coords, isValid, errormsg] = mydatadyn.data_dynamics("DATAMD0", force_evaluator, seakmcdata,
                                                                                ntask_tot,
                                                                                nactive=seakmcdata.natoms,
-                                                                               nproc_task=nproc_task, thisExports=None)
+                                                                               nproc_task=nproc_task, thisExports=None,
+                                                                               **COMM_args)
     return seakmcdata, Eground
 
 
@@ -120,7 +123,6 @@ def preprocess(thissett):
     comm_world = MPI.COMM_WORLD
     rank_world = comm_world.Get_rank()
     size_world = comm_world.Get_size()
-
     Eground = 0.0
     thisRestart = load_RESTART(thissett.system["Restart"])
     if rank_world == 0:
@@ -137,8 +139,16 @@ def preprocess(thissett):
     object_dict = comm_world.bcast(object_dict, root=0)
 
     out_paths = object_dict['out_paths']
-    force_evaluator = object_dict['force_evaluator']
     LogWriter = object_dict['LogWriter']
+    force_evaluator = object_dict['force_evaluator']
+
+    nproc_task = thissett.force_evaluator['nproc']
+    COMM_args = mympi.get_COMM_info(nproc_task, start_proc=0)
+    GPU_args = thissett.force_evaluator["GPU"]
+
+    force_evaluator.init_binary(comm=COMM_args["thiscomm"],
+                     Screen=thissett.force_evaluator['Screen'], Log=thissett.force_evaluator['LogFile'], **GPU_args)
+
     if thisRestart is None:
         seakmcdata = SeakmcData.from_file(thissett.data['FileName'], atom_style=thissett.data['atom_style'])
         seakmcdata.assert_settings(thissett)
@@ -148,8 +158,7 @@ def preprocess(thissett):
         if rank_world == 0:
             logstr = "Successfully loading input and structure ..."
             LogWriter.write_data(logstr)
-
-        seakmcdata, Eground = initial_data_dynamics(thissett, seakmcdata, force_evaluator, LogWriter, comm_world=comm_world)
+        seakmcdata, Eground = initial_data_dynamics(thissett, seakmcdata, force_evaluator, LogWriter, **COMM_args)
         if thissett.visual["Write_Data_SPs"]["Write_KMC_Data"]:
             if rank_world == 0:
                 seakmcdata.to_lammps_data(out_paths[1] + "/" + "KMC_" + str(0) + ".dat", to_atom_style=True)
@@ -164,12 +173,16 @@ def preprocess(thissett):
                                                                                    seakmcdata, 1,
                                                                                    nactive=seakmcdata.natoms,
                                                                                    nproc_task=thissett.force_evaluator[
-                                                                                       'nproc'], thisExports=None)
+                                                                                       'nproc'], thisExports=None, **COMM_args)
 
         if thissett.visual["Write_Data_SPs"]["Write_KMC_Data"]:
             if rank_world == 0:
                 seakmcdata.to_lammps_data(out_paths[1] + "/" + "KMC_" + str(istep_this) + ".dat", to_atom_style=True)
 
+    comm_world.Barrier()
+    force_evaluator.close()
+    if COMM_args["isSplit"]:
+        COMM_args["thiscomm"].Free()
     comm_world.Barrier()
 
     return seakmcdata, object_dict, Eground, thisRestart

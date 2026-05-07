@@ -69,3 +69,13 @@ def split_communicator(nproc_task, start_proc=0, thiscomm=None):
     #thiskey = (rank_local - start_proc) % nproc_task
     comm_split = thiscomm.Split(thiscolor)
     return comm_split, thiscolor
+
+def get_COMM_info(nproc_task, start_proc=0):
+    comm_world = MPI.COMM_WORLD
+    size_world = comm_world.Get_size()
+    if nproc_task == size_world:
+        COMM_dict = {"isSplit": False, "color": 0, "thiscomm": comm_world}
+    else:
+        comm_split, thiscolor = split_communicator(nproc_task, start_proc=start_proc, thiscomm=None)
+        COMM_dict = {"isSplit": True, "color": thiscolor,  "thiscomm": comm_split}
+    return COMM_dict

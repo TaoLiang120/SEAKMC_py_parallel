@@ -7,27 +7,28 @@ comm_world = MPI.COMM_WORLD
 rank_world = comm_world.Get_rank()
 size_world = comm_world.Get_size()
 
+def data_dynamics(purpose, force_evaluator, data, ntask_tot, nactive=None, nproc_task=1, thisExports=None, **COMM_args):
+    start_proc = 0
+    if COMM_args is None:
+        COMM_args = mympi.get_COMM_info(nproc_task, start_proc=0)
+    thiscolor = COMM_args["color"]
+    ntask_time = mympi.get_ntask_time(nproc_task, start_proc=start_proc, thiscomm=None)
 
-def data_dynamics(purpose, force_evaluator, data, ntask_tot, nactive=None, nproc_task=1, thisExports=None):
     if nactive is None:
         try:
             nactive = data.nactive
         except:
             nactive = data.natoms
 
-    start_proc = 0
-    ntask_time = mympi.get_ntask_time(nproc_task, start_proc=start_proc, thiscomm=None)
-    comm_split, thiscolor = mympi.split_communicator(nproc_task, start_proc=start_proc, thiscomm=None)
-
     ntask_left = ntask_tot
     ntask_time = min(ntask_time, ntask_left)
     itask_start = 0
     while ntask_left > 0:
-        if thiscolor < ntask_time:
+        if COMM_args["color"] < ntask_time:
             [Eground, relaxed_coords, isValid, errormsg] = force_evaluator.run_runner(purpose, data, thiscolor,
                                                                                       nactive=nactive,
                                                                                       thisExports=thisExports,
-                                                                                      comm=comm_split)
+                                                                                      comm=COMM_args["thiscomm"])
         else:
             Eground = None
             relaxed_coords = None
@@ -40,7 +41,6 @@ def data_dynamics(purpose, force_evaluator, data, ntask_tot, nactive=None, nproc
         ntask_left = ntask_left - ntask_time
         ntask_time = min(ntask_time, ntask_left)
 
-    comm_split.Free()
     comm_world.Barrier()
     Eground = comm_world.bcast(Eground, root=0)
     relaxed_coords = comm_world.bcast(relaxed_coords, root=0)
@@ -50,3 +50,5 @@ def data_dynamics(purpose, force_evaluator, data, ntask_tot, nactive=None, nproc
         error_exit(errormsg)
 
     return [Eground, relaxed_coords, isValid, errormsg]
+
+

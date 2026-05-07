@@ -7,7 +7,7 @@ from scipy.optimize import curve_fit
 
 from mpi4py import MPI
 import seakmc_p.process.DataDyn as mydatadyn
-from seakmc_p.input.Input import SP_COMPACT_HEADER4Delete, SP_DATA_HEADER
+from seakmc_p.input.Input import SP_COMPACT_HEADER4Delete
 from seakmc_p.kmc.KMC import SuperBasin
 from seakmc_p.spsearch.SaddlePoints import Data_SPs
 from seakmc_p.general.General import DFWriter
@@ -17,7 +17,6 @@ from seakmc_p.kmc.KMC import Basin
 from seakmc_p.mpiconf.error_exit import error_exit
 
 KB = 8.617333262145e-5
-
 class TrialDisp2Basin:
     def __init__(self, seakmcdata, displacement, itrial, Eground=0.0, key="displacement"):
         self.seakmcdata = seakmcdata
@@ -33,15 +32,17 @@ class TrialDisp2Basin:
         self.meanpref = 10
         self.multiply_factor = 1000000
 
-    def relax_basin(self, force_evaluator, LogWriter, ntask_tot=1, nproc_task=1, comm_world=None):
-        if comm_world is None:
-            comm_world = MPI.COMM_WORLD
+    def relax_basin(self, force_evaluator, LogWriter, ntask_tot=1, nproc_task=1, **COMM_args):
+        comm_world = MPI.COMM_WORLD
         rank_world = comm_world.Get_rank()
+
         ntask_tot = 1
         [Eground, relaxed_coords, isValid, errormsg] = mydatadyn.data_dynamics("DATATDB", force_evaluator,
                                                                                self.thisdata, ntask_tot,
                                                                                nactive=self.thisdata.natoms,
-                                                                               nproc_task=nproc_task, thisExports=self.export)
+                                                                               nproc_task=nproc_task,
+                                                                               thisExports=self.export,
+                                                                               **COMM_args)
 
         self.Eground = Eground
         if rank_world == 0:
@@ -49,9 +50,10 @@ class TrialDisp2Basin:
                 LogWriter.write_data(errormsg)
                 error_exit(errormsg)
 
-    def run_seakmc(self, istep, thissett, object_dict, comm_world=None):
-        if comm_world is None:
-            comm_world = MPI.COMM_WORLD
+        comm_world.Barrier()
+
+    def run_seakmc(self, istep, thissett, object_dict):
+        comm_world = MPI.COMM_WORLD
         rank_world = comm_world.Get_rank()
 
         out_paths = object_dict['out_paths']
@@ -145,7 +147,6 @@ class TrialDisp2Basin:
 
         comm_world.Barrier()
 
-
 def func1(x, a, b):
     return a * x + b
 
@@ -217,20 +218,21 @@ class TrialDisps:
         self.target_displacement = self.target_strain * self.ref_length
 
         if self.straintype == 0:
-            self.target_displacement = -abs(self.target_displacement)
-        else:
-            self.target_displacement = abs(self.target_displacement)
-
-        if abs(self.target_displacement) < self.mindisp:
-            if self.straintype == 0:
+            if self.target_displacement >= 0.0:
                 self.target_displacement = -self.mindisp
             else:
+                if self.target_displacement > -self.mindisp:
+                    self.target_displacement = -self.mindisp
+                if self.target_displacement < -self.maxdisp:
+                    self.target_displacement = -self.maxdisp
+        else:
+            if self.target_displacement <= 0.0:
                 self.target_displacement = self.mindisp
-        if abs(self.target_displacement) > self.maxdisp:
-            if self.straintype == 0:
-                self.target_displacement = -self.maxdisp
             else:
-                self.target_displacement = self.maxdisp
+                if self.target_displacement < self.mindisp:
+                    self.target_displacement = self.mindisp
+                if self.target_displacement > self.maxdisp:
+                    self.target_displacement = self.maxdisp
         return self.target_displacement
 
 

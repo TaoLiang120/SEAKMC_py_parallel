@@ -1,10 +1,9 @@
 import os
 import shutil
 import time
-
+import copy
 import numpy as np
 import pandas as pd
-import copy
 from mpi4py import MPI
 
 import seakmc_p.datasps.DataKMC as dataKMC
@@ -13,13 +12,14 @@ import seakmc_p.datasps.PreSPS as preSPS
 import seakmc_p.datasps.ReCalibrate as myRecal
 import seakmc_p.general.DataOut as dataout
 import seakmc_p.process.DataDyn as mydatadyn
+import seakmc_p.mpiconf.MPIconf as mympi
 from seakmc_p.core.data import SeakmcData
 from seakmc_p.input.Input import SP_COMPACT_HEADER4Delete, SP_DATA_HEADER
 from seakmc_p.kmc.KMC import SuperBasin
 from seakmc_p.restart.Restart import RESTART
 from seakmc_p.spsearch.SaddlePoints import Data_SPs
 from seakmc_p.mpiconf.error_exit import error_exit
-from seakmc_p.process.TrialDisp2Basin import TrialDisp2Basin, TrialDisps
+from seakmc_p.process.TrialDisp2Basin import TrialDisps, TrialDisp2Basin
 
 
 def run_seakmc(thissett, seakmcdata, object_dict, Eground, thisRestart):
@@ -32,6 +32,8 @@ def run_seakmc(thissett, seakmcdata, object_dict, Eground, thisRestart):
     LogWriter = object_dict['LogWriter']
     thisSummary = object_dict['thisSummary']
     DFWriter = object_dict['DFWriter']
+    GPU_args = thissett.force_evaluator["GPU"]
+    nproc_task = thissett.force_evaluator["nproc"]
 
     THIS_PATH = out_paths[-1]
     thisExports = thisSummary.export_dict
@@ -64,8 +66,6 @@ def run_seakmc(thissett, seakmcdata, object_dict, Eground, thisRestart):
             tickmc = time.time()
             DFWriter.init_deleted_SPs(istep)
             DFWriter.init_SPs(istep)
-            logstr = f"istep KMC: {istep}"
-            LogWriter.write_data(logstr)
 
         if thisRestart is None:
             if thissett.force_evaluator["TrialDisps2Basin"]["TrialDisps2Basin"]:
@@ -78,23 +78,36 @@ def run_seakmc(thissett, seakmcdata, object_dict, Eground, thisRestart):
                 for itrial in range(TDBsett["nDisps"]):
                     displacement = thisTrialDisps.displacements[itrial]
                     thisTDB = TrialDisp2Basin(seakmcdata, displacement, itrial, Eground=Eground,
-                                              key=TDBsett["Keyword4RinputTDB"])
+                                              key=TDBsett["Keyword"])
+
+                    COMM_args = mympi.get_COMM_info(nproc_task, start_proc=0)
+                    force_evaluator.init_binary(comm=COMM_args["thiscomm"],
+                                                Screen=thissett.force_evaluator['Screen'],
+                                                Log=thissett.force_evaluator['LogFile'],
+                                                **GPU_args)
                     thisTDB.relax_basin(force_evaluator, LogWriter,
                                         ntask_tot=1, nproc_task=thissett.force_evaluator["nproc"],
-                                        comm_world=comm_world)
-                    thisTDB.run_seakmc(istep, thissett, object_dict, comm_world=comm_world)
+                                        **COMM_args)
+                    comm_world.Barrier()
+                    force_evaluator.close()
+                    if COMM_args["isSplit"]:
+                        COMM_args["thiscomm"].Free()
+
+                    thisTDB.run_seakmc(istep, thissett, object_dict)
                     if rank_world == 0:
                         thisTrialDisps.Add_one_trialdisp(thisTDB)
+                    comm_world.Barrier()
 
                 comm_world.Barrier()
                 if rank_world == 0:
                     target_displacement = thisTrialDisps.apply_displacement()
-                    logstr = f"trial displacements: {np.around(thisTrialDisps.displacements, 6)}"
+                    logstr = "\n" + f"---summary of trial strains of {istep} KMC step---"
+                    logstr += f"trial displacements: {np.around(thisTrialDisps.displacements, 6)}"
                     logstr += "\n" + f"strains (displacements/Ref_Length):{np.around(thisTrialDisps.strains, 6)}"
-                    logstr += "\n" + f"one_over_freqs:{np.around(thisTrialDisps.one_over_freqs, 6)}"
+                    logstr += "\n" + f"barriers: {np.around(thisTrialDisps.barrs, 6)} one_over_freqs:{np.around(thisTrialDisps.one_over_freqs, 6)}"
                     logstr += "\n" + f"strain rates:{np.around(thisTrialDisps.strainrates, 6)}"
                     logstr += "\n" + f"target strain:{np.around(thisTrialDisps.target_strain, 6)} target displacement:{np.around(target_displacement, 6)}"
-                    logstr += "\n" + f"---End of trial displacements of {istep} KMC step---"
+                    logstr += "\n" + f"---End of trial strains of {istep} KMC step---"
                     logstr += "\n"
                     LogWriter.write_data(logstr)
                 else:
@@ -102,16 +115,27 @@ def run_seakmc(thissett, seakmcdata, object_dict, Eground, thisRestart):
 
                 comm_world.Barrier()
                 target_displacement = comm_world.bcast(target_displacement, root=0)
-
                 thisTDB = TrialDisp2Basin(seakmcdata, target_displacement, TDBsett["nDisps"], Eground=Eground,
-                                          key=TDBsett["Keyword4RinputTDB"])
+                                          key=TDBsett["Keyword"])
+
+                COMM_args = mympi.get_COMM_info(nproc_task, start_proc=0)
+                force_evaluator.init_binary(comm=COMM_args["thiscomm"],
+                                            Screen=thissett.force_evaluator['Screen'],
+                                            Log=thissett.force_evaluator['LogFile'],
+                                            **GPU_args)
                 thisTDB.relax_basin(force_evaluator, LogWriter, ntask_tot=1,
-                                    nproc_task=thissett.force_evaluator["nproc"])
+                                    nproc_task=thissett.force_evaluator["nproc"], **COMM_args)
+                force_evaluator.close()
+                if COMM_args["isSplit"]:
+                    COMM_args["thiscomm"].Free()
+
                 seakmcdata = copy.deepcopy(thisTDB.thisdata)
                 Eground = thisTDB.Eground
 
                 comm_world.Barrier()
             ### End of Trial Displacements 2 Basin ###
+            logstr = f"istep KMC: {istep}"
+            LogWriter.write_data(logstr)
 
             seakmcdata.get_defects(LogWriter, last_de_center=last_de_center)
             dataout.visualize_data_AVs(thissett.visual, seakmcdata, istep, out_paths[1])
@@ -125,12 +149,10 @@ def run_seakmc(thissett, seakmcdata, object_dict, Eground, thisRestart):
             if rank_world == 0:
                 logstr = (f"The ground energy is "
                           f"{round(Eground, thissett.system['float_precision'])} eV at {istep} KMC step!")
-                logstr += ("\n" +
-                           f"There are {seakmcdata.ndefects} defects (active volumes) in data at {istep} KMC step!")
-                logstr += ("\n" +
-                           f"The fractional coords of the defect center are "
-                           f"{np.around(seakmcdata.de_center, decimals=thissett.system['float_precision'])} "
-                           f"at {istep} KMC step!")
+                logstr += "\n" + f"There are {seakmcdata.ndefects} defects (active volumes) in data at {istep} KMC step!"
+                logstr += "\n" + (f"The fractional coords of the defect center are "
+                                  f"{np.around(seakmcdata.de_center, decimals=thissett.system['float_precision'])} "
+                                  f"at {istep} KMC step!")
                 logstr += "\n"
                 LogWriter.write_data(logstr)
         else:
@@ -243,11 +265,16 @@ def run_seakmc(thissett, seakmcdata, object_dict, Eground, thisRestart):
         seakmcdata = comm_world.bcast(seakmcdata, root=0)
         last_de_center = comm_world.bcast(last_de_center, root=0)
 
-        nproc_task = thissett.force_evaluator['nproc']
+        COMM_args = mympi.get_COMM_info(nproc_task, start_proc=0)
+        force_evaluator.init_binary(comm=COMM_args["thiscomm"],
+                                    Screen=thissett.force_evaluator['Screen'], Log=thissett.force_evaluator['LogFile'],
+                                    **GPU_args)
         [Eground, relaxed_coords, isValid, errormsg] = mydatadyn.data_dynamics("OPT", force_evaluator, seakmcdata, 1,
                                                                                nactive=seakmcdata.natoms,
                                                                                nproc_task=nproc_task,
-                                                                               thisExports=thisExports)
+                                                                               thisExports=thisExports, **COMM_args)
+        force_evaluator.close()
+        if COMM_args["isSplit"]: COMM_args["thiscomm"].Free()
 
         if rank_world == 0:
             for f in os.listdir("Runner_0/"):
@@ -265,15 +292,12 @@ def run_seakmc(thissett, seakmcdata, object_dict, Eground, thisRestart):
 
             tockmc = time.time()
             logstr = "\n" + "KMC " + str(istep) + "th step is finished."
-            logstr += ("\n" +
-                       f"Time step for {istep} KMC step: "
-                       f"{round(this_simulation_time, thissett.system['float_precision'])} ps")
-            logstr += ("\n" +
-                       f"Summed time steps after {istep} KMC step: "
-                       f"{round(simulation_time, thissett.system['float_precision'])} ps")
-            logstr += ("\n" +
-                       f"Real time cost for {istep} KMC step: "
-                       f"{round(tockmc - tickmc, thissett.system['float_precision'])} s")
+            logstr += "\n" + (f"Time step for {istep} KMC step: "
+                              f"{round(this_simulation_time, thissett.system['float_precision'])} ps")
+            logstr += "\n" + (f"Summed time steps after {istep} "
+                              f"KMC step: {round(simulation_time, thissett.system['float_precision'])} ps")
+            logstr += "\n" + (f"Real time cost for {istep} "
+                              f"KMC step: {round(tockmc - tickmc, thissett.system['float_precision'])} s")
             logstr += "\n" + "==================================================================="
             LogWriter.write_data(logstr)
 

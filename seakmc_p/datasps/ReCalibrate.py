@@ -80,8 +80,15 @@ def recalibrate_energy(thissett, DataSPs, seakmcdata, AVitags, Eground, object_d
         error_exit(errormsg)
 
     start_proc = 0
+    GPU_args = thissett.force_evaluator["GPU"]
     ntask_time = mympi.get_ntask_time(nproc_task, start_proc=start_proc, thiscomm=None)
-    comm_split, thiscolor = mympi.split_communicator(nproc_task, start_proc=start_proc, thiscomm=None)
+    force_evaluator = object_dict['force_evaluator']
+    COMM_args = mympi.get_COMM_info(nproc_task, start_proc=start_proc)
+    force_evaluator.init_binary(comm=COMM_args["thiscomm"],
+                                Screen=thissett.force_evaluator['Screen'],
+                                Log=thissett.force_evaluator['LogFile'],
+                                **GPU_args)
+    thiscolor = COMM_args["color"]
 
     LogWriter = object_dict['LogWriter']
     ReBias = thissett.saddle_point["CalEbiasInData"]
@@ -100,7 +107,7 @@ def recalibrate_energy(thissett, DataSPs, seakmcdata, AVitags, Eground, object_d
     itask_start = 0
     while ntask_left > 0:
         if thiscolor < ntask_time:
-            thisidens, thisid4del, thisreason = recalib_energy_single(itask_start, thiscolor, comm_split,
+            thisidens, thisid4del, thisreason = recalib_energy_single(itask_start, thiscolor, COMM_args["thiscomm"],
                                                                       idtasks, thissett, DataSPs, seakmcdata, AVitags,
                                                                       Eground, ReBias, object_dict)
         else:
@@ -121,7 +128,7 @@ def recalibrate_energy(thissett, DataSPs, seakmcdata, AVitags, Eground, object_d
                 ids4del = np.append(ids4del, [thisid4del])
                 reasons = np.append(reasons, [thisreason])
         else:
-            if thiscolor > 0 and thiscolor < ntask_time and comm_split.Get_rank() == 0:
+            if thiscolor > 0 and thiscolor < ntask_time and COMM_args["thiscomm"].Get_rank() == 0:
                 comm_world.send(thisidens, dest=0, tag=thiscolor * 10 + 1)
                 comm_world.send(thisid4del, dest=0, tag=thiscolor * 10 + 2)
                 comm_world.send(thisreason, dest=0, tag=thiscolor * 10 + 3)
@@ -177,7 +184,9 @@ def recalibrate_energy(thissett, DataSPs, seakmcdata, AVitags, Eground, object_d
     DataSPs = comm_world.bcast(DataSPs, root=0)
     df_delete_this = comm_world.bcast(df_delete_this, root=0)
 
-    comm_split.Free()
+    force_evaluator.close()
+    if COMM_args["isSplit"]:
+        COMM_args["thiscomm"].Free()
     comm_world.Barrier()
 
     return DataSPs, df_delete_this

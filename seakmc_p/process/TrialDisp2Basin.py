@@ -45,12 +45,15 @@ class TrialDisp2Basin:
                                                                                thisExports=self.export,
                                                                                **COMM_args)
 
-        self.Eground = Eground
         if rank_world == 0:
             if not isValid:
                 LogWriter.write_data(errormsg)
                 error_exit(errormsg)
         comm_world.Barrier()
+
+        Eground = comm_world.bcast(Eground, root=0)
+        self.Eground = Eground
+
 
     def update_thisdata(self, thissett):
         self.thisdata = SeakmcData.from_file("Runner_0/tmp1.dat", atom_style=thissett.data['atom_style_after'])

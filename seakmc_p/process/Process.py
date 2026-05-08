@@ -309,9 +309,11 @@ def run_seakmc(thissett, seakmcdata, object_dict, Eground, thisRestart):
 
         comm_world.Barrier()
 
+        '''
         MPI.Finalize()
         comm_world = MPI.COMM_WORLD
         rank_world = comm_world.Get_rank()
         size_world = comm_world.Get_size()
+        '''
 
     return simulation_time

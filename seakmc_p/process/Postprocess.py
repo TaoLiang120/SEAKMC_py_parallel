@@ -26,5 +26,5 @@ def postprocess(tic, thissett, object_dict, simulation_time):
         logstr += "\n" + "==================================================================="
         LogWriter.write_data(logstr)
 
-        comm_world.Barrier()
-        MPI.Finalize()
+    comm_world.Barrier()
+    MPI.Finalize()

@@ -62,7 +62,6 @@ class PyLammpsRunner(object):
 
     def run_runner(self, purpose, data, thiscolor, nactive=None,
                    thisExports=None, comm=None):
-
         purpose = purpose.upper()
         nproc_task = self.get_nproc_task(purpose)
         self.this_path = os.getcwd()
@@ -422,9 +421,9 @@ class PyLammpsRunner(object):
     def ImportValue4RinputOpt(self, rinputs, purpose, thisExports=None):
         isValid = True
         if purpose == "DATATDB":
-            key1 = self.sett.force_evaluator["TrialDisps2Basin"]["Keyword4RinputTDB"]
-            key2 = self.sett.force_evaluator["TrialDisps2Basin"]["Keyword"]
-            KEYS = [[key1, key2]]
+            KEYS = self.sett.force_evaluator["TrialDisps2Basin"]["Keys4ImportValue4RinputTDB"]
+            if len(KEYS) == 0:
+                isValid = False
         elif purpose == "OPT" or purpose == "RELAX":
             if not self.sett.force_evaluator['ImportValue4RinputOpt']:
                 isValid = False

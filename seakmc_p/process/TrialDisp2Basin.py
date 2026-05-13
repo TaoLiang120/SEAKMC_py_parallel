@@ -19,12 +19,18 @@ from seakmc_p.mpiconf.error_exit import error_exit
 
 KB = 8.617333262145e-5
 class TrialDisp2Basin:
-    def __init__(self, seakmcdata, displacement, itrial, Eground=0.0, key="displacement"):
+    def __init__(self, seakmcdata, displacement, itrial, Eground=0.0, istep=0, **system_exports):
         self.seakmcdata = seakmcdata
         self.displacement = displacement
         self.itrial = itrial
-        self.key = key
-        self.export = {self.key: self.displacement}
+        self.istep = istep
+        if system_exports is None:
+            self.export = {"displacement": self.displacement, "itrial": self.itrial}
+        else:
+            self.export = copy.deepcopy(system_exports)
+            self.export["displacement"] = self.displacement
+            self.export["itrial"] = self.itrial
+
         self.thisdata = copy.deepcopy(self.seakmcdata)
         self.Eground = Eground
         self.timeelapse = 0.0
@@ -32,6 +38,7 @@ class TrialDisp2Basin:
         self.equi_barr = 0.0
         self.meanpref = 10
         self.multiply_factor = 1000000
+
 
     def relax_basin(self, force_evaluator, LogWriter, ntask_tot=1, nproc_task=1, **COMM_args):
         comm_world = MPI.COMM_WORLD
@@ -162,7 +169,7 @@ def func1(x, a, b):
 
 class TrialDisps:
     def __init__(self, displacements, ref_length, target_strainrate,
-                 temp=300.0, mindisp=0.0001, maxdisp=0.01, straintype=1):
+                 temp=300.0, mindisp=0.0001, maxdisp=0.01, straintype=1, istep=0):
         self.displacements = np.array(displacements)
         self.ref_length = ref_length
         self.target_strainrate = target_strainrate
@@ -178,6 +185,7 @@ class TrialDisps:
         self.meanprefs = np.zeros(self.ndisps)
         self.target_displacement = 0.01
         self.KBT = KB * self.temp
+        self.istep = istep
 
     def Add_one_trialdisp(self, thisTrialDisp2Basin):
         id = np.where(self.displacements == thisTrialDisp2Basin.displacement)
@@ -187,6 +195,7 @@ class TrialDisps:
         self.one_over_freqs[id] = thisTrialDisp2Basin.one_over_freq
         self.meanprefs[id] = thisTrialDisp2Basin.meanpref
 
+    @staticmethod
     def fit(x, y):
         if len(x) == 2:
             popt = np.linalg.solve(np.array([[x[0], 1.0], [x[1], 1.0]]), y)
@@ -220,6 +229,7 @@ class TrialDisps:
         self.strainrates = np.divide(self.strains, self.one_over_freqs) * 1.0e12
         self.logstrainrates = np.log(np.absolute(self.strainrates))
         isValid, popt = TrialDisps.fit(self.strains, self.logstrainrates)
+
         if isValid:
             if self.ndisps > 2:
                 x, y = self.chop_x_y(self.strains, self.logstrainrates, popt)

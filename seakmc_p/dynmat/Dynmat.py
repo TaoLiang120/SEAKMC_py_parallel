@@ -106,7 +106,7 @@ class DynMat:
             self.eig = None
             self.eigvec = None
             self.dynmat = None
-        if self.isValid: self.eigvec = None
+        if not self.isValid: self.eigvec = None
 
     def negative_to_one(self):
         if not isinstance(self.eig, np.ndarray): self.diagonize_matrix()

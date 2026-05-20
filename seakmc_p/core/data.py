@@ -796,8 +796,10 @@ class SeakmcData(LammpsData, MSONable):
 
         tv = np.zeros(refdata.natoms, dtype=int)
         ti = np.zeros(self.natoms, dtype=int)
+        tt = np.ones(self.natoms, dtype=int)
         tv_rec = np.empty([size_world, refdata.natoms], dtype=int)
         ti_rec = np.empty([size_world, self.natoms], dtype=int)
+        tt_rec = np.empty([size_world, self.natoms], dtype=int)
         for nr in range(nrstart, nrend):
             thisidmol = refdata.atoms.iloc[nr]["molecule-ID"]
             ismolid = True
@@ -828,16 +830,22 @@ class SeakmcData(LammpsData, MSONable):
                     for j in range(inds.shape[0]):
                         jj = inds[j]
                         ti[jj] = nr + 1
+                        typej = self.atoms.iloc[jj]["type"] - 1
+                        if typej != thistype:
+                            tt[jj] = 0
 
         comm_world.Barrier()
         comm_world.Allgather(tv, tv_rec)
         comm_world.Allgather(ti, ti_rec)
+        comm_world.Allgather(tt, tt_rec)
 
         tv = tv_rec.max(axis=0)
         ti = ti_rec.max(axis=0)
+        tt = tt_rec.min(axis=0)
 
         defect_list = []
         dCN_list = []
+        selected_inds = []
         #if self.sett.active_volume["FindDefects"]["DiscardType"][0:2].upper() != "UN":
         indv = np.where(tv == 0)
         for i in range(indv[0].shape[0]):
@@ -849,8 +857,20 @@ class SeakmcData(LammpsData, MSONable):
         indi = np.where(ti == 0)
         for i in range(indi[0].shape[0]):
             j = indi[0][i]
-            defect_list.append(ref_atoms_ghost_array[j])
-            dCN_list.append(1)
+            if j not in selected_inds:
+                defect_list.append(atoms_ghost_array[j])
+                dCN_list.append(1)
+                selected_inds.append(j)
+
+        indt = np.where(tt == 0)
+        #print(f"indt = {indt}")
+        for i in range(indt[0].shape[0]):
+            j = indt[0][i]
+            if j not in selected_inds:
+                defect_list.append(atoms_ghost_array[j])
+                dCN_list.append(0)
+                selected_inds.append(j)
+
         return defect_list
 
     def custom_find_defects(self):

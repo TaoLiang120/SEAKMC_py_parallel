@@ -915,6 +915,11 @@ class Settings:
                 logstr += "\n" + f"This is corresponding to an energy barrier of {barr} eV at {temp} K with a prefactor of {prefactor}!."
                 print(logstr)
 
+        if self.dynamic_matrix["OutDynMat"]:
+            if not self.dynamic_matrix["CalPrefactor"]:
+                errormsg = f"To output dynamic matrix, 'CalPrefactor' has to be True!"
+                error_exit(errormsg)
+
         if self.saddle_point["CalBarrsInData"] and self.saddle_point["CalEbiasInData"]:
             self.spsearch["LocalRelax"]["LocalRelax"] = True
         if self.force_evaluator["Relaxation"]["BoxRelax"] and self.kinetic_MC["AccStyle"][0:3].upper() == "MRM":
